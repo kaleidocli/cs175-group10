@@ -6,11 +6,11 @@ title:  Team
 # {{ page.title }}
 
 
-## USER 1
-***UCI Net ID***: ucinetid1
+## Khang Thai Ho
+***UCI Net ID***: khangth1
 
-## USER 2
-***UCI Net ID***: ucinetid2
+## Kevin Shengyang Yu
+***UCI Net ID***: ksyu1
 
-## USER 3
-***UCI Net ID***: ucinetid3
+## Justin Gea
+***UCI Net ID***: geaj
