@@ -21,6 +21,8 @@ Diplomacy is game with perfect information and no random event.
 We will use Q-Learning due to its properties:
 - Model-free: Due to our limitation in data, we do not have a model of players behavior.
 - Off-policy: This property offers us better exploration.
+- Temporal difference for updating policy on-the-fly instead of every episode, since the state space is pretty large.
+However, since Q-Learning is Tabular, it might not scale well for large state space like Diplomacy, so we will likely need further adjustment later.
 
 ## 2.4 Evaluation Plan
 We will evaluate our AI through win rate.
