@@ -27,23 +27,25 @@ works with that (e.g. CFR algorithms). It is likely to be poor if the algorithm
 relies on processing and updating states as it goes, e.g., MCTS.
 """
 
-import numpy as np
-
 from open_spiel.python.observation import IIGObserverForPublicInfoGame
 import pyspiel
 
-_NUM_PLAYERS = 2
+import numpy as np
+import diplomacy as dp
+import random
+
+_NUM_PLAYERS = 3  # adjusted
 _NUM_ROWS = 3
 _NUM_COLS = 3
 _NUM_CELLS = _NUM_ROWS * _NUM_COLS
 _GAME_TYPE = pyspiel.GameType(
-    short_name="python_dip",
-    long_name="Python Diplomacy",
+    short_name="python_dip",      # adjusted
+    long_name="Python Diplomacy", # adjusted
     dynamics=pyspiel.GameType.Dynamics.SEQUENTIAL,
     chance_mode=pyspiel.GameType.ChanceMode.DETERMINISTIC,
     information=pyspiel.GameType.Information.PERFECT_INFORMATION,
     utility=pyspiel.GameType.Utility.ZERO_SUM,
-    reward_model=pyspiel.GameType.RewardModel.TERMINAL,
+    reward_model=pyspiel.GameType.RewardModel.TERMINAL,      # adjusted REWARDS if want to update on the fly
     max_num_players=_NUM_PLAYERS,
     min_num_players=_NUM_PLAYERS,
     provides_information_state_string=True,
@@ -52,13 +54,13 @@ _GAME_TYPE = pyspiel.GameType(
     provides_observation_tensor=True,
     parameter_specification={})
 _GAME_INFO = pyspiel.GameInfo(
-    num_distinct_actions=_NUM_CELLS,
+    num_distinct_actions=3434,    # adjusted
     max_chance_outcomes=0,
-    num_players=2,
+    num_players=3,    # adjusted
     min_utility=-1.0,
     max_utility=1.0,
     utility_sum=0.0,
-    max_game_length=_NUM_CELLS)
+    max_game_length=120)    # adjusted
 
 
 class TicTacToeGame(pyspiel.Game):
@@ -86,10 +88,26 @@ class TicTacToeState(pyspiel.State):
   def __init__(self, game):
     """Constructor; should only be called by Game.new_initial_state."""
     super().__init__(game)
+
+    self.dpGame = dp.Game()
+    # Limit player count
+    temp_players = random.sample(self.dpGame.powers.items(), _NUM_PLAYERS)
+    self.dpPlayers = dict[str, dp.Power]
+    self.dpPlayerNames = list(self.dpPlayers.keys())
+    self.dpPlayerScores = [0.0] * len(self.dpPlayers)
+    for k, v in temp_players:
+      self.dpPlayers[k] = v
+      self.dpPlayerNames.append(k)
+    for power_name, power in self.dpGame.powers.items():
+      power: dp.Power
+      if power_name in self.dpPlayers.keys():
+        continue
+      power.clear_centers()
+      power.clear_units()
+
     self._cur_player = 0
     self._player0_score = 0.0
     self._is_terminal = False
-    self.board = np.full((_NUM_ROWS, _NUM_COLS), ".")
 
   # OpenSpiel (PySpiel) API functions are below. This is the standard set that
   # should be implemented by every perfect-information sequential-move game.
@@ -99,24 +117,34 @@ class TicTacToeState(pyspiel.State):
     return pyspiel.PlayerId.TERMINAL if self._is_terminal else self._cur_player
 
   def _legal_actions(self, player):
-    """Returns a list of legal actions, sorted in ascending order."""
-    return [a for a in range(_NUM_CELLS) if self.board[_coord(a)] == "."]
+    """
+    Returns a list of legal actions, sorted in ascending order.
+    --- cs175 ---
+    An action is an alpha sorted list of orders, each corresponds to a valid unit
+    and does not overlaps.
+    """
+    locs_and_orders = self.dpGame.get_all_possible_orders()
+    return self._cartesian_product_of_orders_of_locs(locs_and_orders, self.dpGame.get_orderable_locations(player))
 
   def _apply_action(self, action):
-    """Applies the specified action to the state."""
-    self.board[_coord(action)] = "x" if self._cur_player == 0 else "o"
-    if _line_exists(self.board):
+    """
+    Applies the specified action to the state.
+    --- cs175 ---
+    An action is an alpha sorted list of orders, each corresponds to a valid unit
+    and does not overlaps.
+    """
+    self.dpGame.set_orders(self.dpPlayerNames[self._cur_player], action)
+    if self.dpGame.is_game_done:    # Check terminal state
       self._is_terminal = True
-      self._player0_score = 1.0 if self._cur_player == 0 else -1.0
-    elif all(self.board.ravel() != "."):
-      self._is_terminal = True
+      for i in range(len(self.dpPlayers)):
+        self.dpPlayerScores[i] = 1.0 if self.dpPlayerNames[i] in self.dpGame.outcome else -1.0
     else:
-      self._cur_player = 1 - self._cur_player
-
-  def _action_to_string(self, player, action):
+      self._cur_player = 0 if self._cur_player == len(self.dpPlayers) else self._cur_player + 1
+    self.dpGame.process()
+      
+  def _action_to_string(self, player, action) -> str:
     """Action -> string."""
-    row, col = _coord(action)
-    return "{}({},{})".format("x" if player == 0 else "o", row, col)
+    return str(action)
 
   def is_terminal(self):
     """Returns True if the game is over."""
@@ -124,11 +152,22 @@ class TicTacToeState(pyspiel.State):
 
   def returns(self):
     """Total reward for each player over the course of the game so far."""
-    return [self._player0_score, -self._player0_score]
+    return self.dpPlayerScores
 
   def __str__(self):
     """String for debug purposes. No particular semantics are required."""
-    return _board_to_string(self.board)
+    return "TicTacToeState.__str__ not implemented"
+  
+  def _cartesian_product_of_orders_of_locs(self, locs_and_orders: dict, locs, current_orders: list=[], index=0) -> list[list]:
+    # Base case: if we've reached the end of the lists, add the sequence
+    if index == len(locs_and_orders):
+        return [current_orders.sort()]
+    
+    # Recursive case: iterate through the current list and append results
+    result = []
+    for order in locs_and_orders[locs[index]]:
+        result.extend(self._cartesian_product_of_orders_of_locs(locs_and_orders, locs, current_orders.append(order), index + 1))
+    return result
 
 
 class BoardObserver:
@@ -161,34 +200,6 @@ class BoardObserver:
     """Observation of `state` from the PoV of `player`, as a string."""
     del player
     return _board_to_string(state.board)
-
-
-# Helper functions for game details.
-
-
-def _line_value(line):
-  """Checks a possible line, returning the winning symbol if any."""
-  if all(line == "x") or all(line == "o"):
-    return line[0]
-
-
-def _line_exists(board):
-  """Checks if a line exists, returns "x" or "o" if so, and None otherwise."""
-  return (_line_value(board[0]) or _line_value(board[1]) or
-          _line_value(board[2]) or _line_value(board[:, 0]) or
-          _line_value(board[:, 1]) or _line_value(board[:, 2]) or
-          _line_value(board.diagonal()) or
-          _line_value(np.fliplr(board).diagonal()))
-
-
-def _coord(move):
-  """Returns (row, col) from an action id."""
-  return (move // _NUM_COLS, move % _NUM_COLS)
-
-
-def _board_to_string(board):
-  """Returns a string representation of the board."""
-  return "\n".join("".join(row) for row in board)
 
 
 # Register the game with the OpenSpiel library
