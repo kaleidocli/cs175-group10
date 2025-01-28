@@ -33,10 +33,18 @@ import pyspiel
 import numpy as np
 import diplomacy as dp
 import random
+from dipTranslator import DipTranslator
+from tabulate import tabulate
+
+dipTrans = DipTranslator()
+_NUM_LOCS = len(dipTrans.loc_to_idx)
+_NUM_POWS = len(dipTrans.power_to_idx)
+_NUM_MOVES = 4
+_NUM_STATS = 3
 
 _NUM_PLAYERS = 3  # adjusted
-_NUM_ROWS = 3
-_NUM_COLS = 3
+_NUM_ROWS = _NUM_LOCS
+_NUM_COLS = _NUM_POWS
 _NUM_CELLS = _NUM_ROWS * _NUM_COLS
 _GAME_TYPE = pyspiel.GameType(
     short_name="python_dip",      # adjusted
@@ -54,16 +62,16 @@ _GAME_TYPE = pyspiel.GameType(
     provides_observation_tensor=True,
     parameter_specification={})
 _GAME_INFO = pyspiel.GameInfo(
-    num_distinct_actions=3434,    # adjusted
+    num_distinct_actions=_NUM_MOVES * _NUM_LOCS,    # adjusted
     max_chance_outcomes=0,
-    num_players=3,    # adjusted
+    num_players=_NUM_PLAYERS,    # adjusted
     min_utility=-1.0,
     max_utility=1.0,
     utility_sum=0.0,
     max_game_length=120)    # adjusted
 
 
-class TicTacToeGame(pyspiel.Game):
+class DipGame(pyspiel.Game):
   """A Python version of the Tic-Tac-Toe game."""
 
   def __init__(self, params=None):
@@ -71,7 +79,7 @@ class TicTacToeGame(pyspiel.Game):
 
   def new_initial_state(self):
     """Returns a state corresponding to the start of a game."""
-    return TicTacToeState(self)
+    return DipState(self)
 
   def make_py_observer(self, iig_obs_type=None, params=None):
     """Returns an object used for observing game state."""
@@ -82,7 +90,7 @@ class TicTacToeGame(pyspiel.Game):
       return IIGObserverForPublicInfoGame(iig_obs_type, params)
 
 
-class TicTacToeState(pyspiel.State):
+class DipState(pyspiel.State):
   """A python version of the Tic-Tac-Toe state."""
 
   def __init__(self, game):
@@ -156,7 +164,7 @@ class TicTacToeState(pyspiel.State):
 
   def __str__(self):
     """String for debug purposes. No particular semantics are required."""
-    return "TicTacToeState.__str__ not implemented"
+    return "DipState.__str__ not implemented"
   
   def _cartesian_product_of_orders_of_locs(self, locs_and_orders: dict, locs, current_orders: list=[], index=0) -> list[list]:
     # Base case: if we've reached the end of the lists, add the sequence
@@ -180,28 +188,34 @@ class BoardObserver:
     # The observation should contain a 1-D tensor in `self.tensor` and a
     # dictionary of views onto the tensor, which may be of any shape.
     # Here the observation is indexed `(cell state, row, column)`.
-    shape = (1 + _NUM_PLAYERS, _NUM_ROWS, _NUM_COLS)
+    shape = (_NUM_STATS, _NUM_POWS, _NUM_LOCS)
     self.tensor = np.zeros(np.prod(shape), np.float32)
     self.dict = {"observation": np.reshape(self.tensor, shape)}
 
-  def set_from(self, state, player):
+  def set_from(self, state: DipState, player):
     """Updates `tensor` and `dict` to reflect `state` from PoV of `player`."""
     del player
+    translated_game_state: list[list[list[int]]] = \
+      dipTrans.translate_game_state_to_matrix(state.dpGame.get_state(), _NUM_LOCS, _NUM_POWS, _NUM_STATS)
+
     # We update the observation via the shaped tensor since indexing is more
     # convenient than with the 1-D tensor. Both are views onto the same memory.
     obs = self.dict["observation"]
     obs.fill(0)
-    for row in range(_NUM_ROWS):
-      for col in range(_NUM_COLS):
-        cell_state = ".ox".index(state.board[row, col])
-        obs[cell_state, row, col] = 1
+    for x in range(_NUM_LOCS):
+      for y in range(_NUM_POWS):
+        for z in range(_NUM_STATS):
+          obs[x, y, z] = translated_game_state[x][y][z]
 
-  def string_from(self, state, player):
+  def string_from(self, state: DipState, player) -> str:
     """Observation of `state` from the PoV of `player`, as a string."""
     del player
-    return _board_to_string(state.board)
+    return _mtx_to_str(None)
+  
+def _mtx_to_str(mtx: list[list[list[int]]]) -> str:
+  return "Not implemented"
 
 
 # Register the game with the OpenSpiel library
 
-pyspiel.register_game(_GAME_TYPE, TicTacToeGame)
+pyspiel.register_game(_GAME_TYPE, DipGame)
