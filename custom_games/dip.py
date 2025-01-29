@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Lint as python3
-"""Tic tac toe (noughts and crosses), implemented in Python.
+"""Diplomacy, implemented in Python.
 
 This is a demonstration of implementing a deterministic perfect-information
 game in Python.
@@ -35,10 +35,11 @@ import diplomacy as dp
 import random
 from dipTranslator import DipTranslator
 from tabulate import tabulate
+import json
 
 dipTrans = DipTranslator()
-_NUM_LOCS = len(dipTrans.loc_to_idx)
-_NUM_POWS = len(dipTrans.power_to_idx)
+_NUM_LOCS = dipTrans.get_loc_count()
+_NUM_POWS = dipTrans.get_power_count()
 _NUM_MOVES = 4
 _NUM_STATS = 3
 
@@ -68,11 +69,11 @@ _GAME_INFO = pyspiel.GameInfo(
     min_utility=-1.0,
     max_utility=1.0,
     utility_sum=0.0,
-    max_game_length=120)    # adjusted
+    max_game_length=1000)    # adjusted
 
 
 class DipGame(pyspiel.Game):
-  """A Python version of the Tic-Tac-Toe game."""
+  """A Python version of the Diplomacy game."""
 
   def __init__(self, params=None):
     super().__init__(_GAME_TYPE, _GAME_INFO, params or dict())
@@ -91,7 +92,7 @@ class DipGame(pyspiel.Game):
 
 
 class DipState(pyspiel.State):
-  """A python version of the Tic-Tac-Toe state."""
+  """A python version of the Diplomacy state."""
 
   def __init__(self, game):
     """Constructor; should only be called by Game.new_initial_state."""
@@ -99,13 +100,13 @@ class DipState(pyspiel.State):
 
     self.dpGame = dp.Game()
     # Limit player count
-    temp_players = random.sample(self.dpGame.powers.items(), _NUM_PLAYERS)
-    self.dpPlayers = dict[str, dp.Power]
-    self.dpPlayerNames = list(self.dpPlayers.keys())
-    self.dpPlayerScores = [0.0] * len(self.dpPlayers)
+    temp_players = random.sample(list(self.dpGame.powers.items()), _NUM_PLAYERS)
+    self.dpPlayers: dict[str, dp.Power] = dict()
+    self.dpPlayerNames: list[str] = []
     for k, v in temp_players:
       self.dpPlayers[k] = v
       self.dpPlayerNames.append(k)
+    self.dpPlayerScores = [0.0] * len(self.dpPlayers)
     for power_name, power in self.dpGame.powers.items():
       power: dp.Power
       if power_name in self.dpPlayers.keys():
@@ -124,7 +125,7 @@ class DipState(pyspiel.State):
     """Returns id of the next player to move, or TERMINAL if game is over."""
     return pyspiel.PlayerId.TERMINAL if self._is_terminal else self._cur_player
 
-  def _legal_actions(self, player):
+  def _legal_actions(self, player: int):
     """
     Returns a list of legal actions, sorted in ascending order.
     --- cs175 ---
@@ -132,7 +133,16 @@ class DipState(pyspiel.State):
     and does not overlaps.
     """
     locs_and_orders = self.dpGame.get_all_possible_orders()
-    return self._cartesian_product_of_orders_of_locs(locs_and_orders, self.dpGame.get_orderable_locations(player))
+    raw_actions = self._cartesian_product_of_orders_of_locs(
+      locs_and_orders,
+      self.dpGame.get_orderable_locations(dipTrans.get_power_from_power_idx(player))
+      )
+    serialized_actions = []
+    for raw_action in raw_actions:
+      serialized_actions.append(dipTrans.serialize_action_to_int(raw_action))
+    
+    print(f"[dip]\t\tFound {len(serialized_actions)} legal actions")
+    return serialized_actions
 
   def _apply_action(self, action):
     """
@@ -141,7 +151,11 @@ class DipState(pyspiel.State):
     An action is an alpha sorted list of orders, each corresponds to a valid unit
     and does not overlaps.
     """
-    self.dpGame.set_orders(self.dpPlayerNames[self._cur_player], action)
+    real_action = dipTrans.deserialize_action_id_by_cache(action)
+    if real_action != None:
+      self.dpGame.set_orders(self.dpPlayerNames[self._cur_player], real_action)
+    else:
+      print(f"[dip]\t\tAction_id={action} not found! Skipping this action...")
     if self.dpGame.is_game_done:    # Check terminal state
       self._is_terminal = True
       for i in range(len(self.dpPlayers)):
@@ -168,13 +182,13 @@ class DipState(pyspiel.State):
   
   def _cartesian_product_of_orders_of_locs(self, locs_and_orders: dict, locs, current_orders: list=[], index=0) -> list[list]:
     # Base case: if we've reached the end of the lists, add the sequence
-    if index == len(locs_and_orders):
-        return [current_orders.sort()]
+    if index == len(locs):
+        return [sorted(current_orders)]
     
     # Recursive case: iterate through the current list and append results
     result = []
     for order in locs_and_orders[locs[index]]:
-        result.extend(self._cartesian_product_of_orders_of_locs(locs_and_orders, locs, current_orders.append(order), index + 1))
+        result.extend(self._cartesian_product_of_orders_of_locs(locs_and_orders, locs, current_orders + [order], index + 1))
     return result
 
 
@@ -188,7 +202,7 @@ class BoardObserver:
     # The observation should contain a 1-D tensor in `self.tensor` and a
     # dictionary of views onto the tensor, which may be of any shape.
     # Here the observation is indexed `(cell state, row, column)`.
-    shape = (_NUM_STATS, _NUM_POWS, _NUM_LOCS)
+    shape = (_NUM_LOCS, _NUM_POWS, _NUM_STATS)
     self.tensor = np.zeros(np.prod(shape), np.float32)
     self.dict = {"observation": np.reshape(self.tensor, shape)}
 
@@ -205,7 +219,12 @@ class BoardObserver:
     for x in range(_NUM_LOCS):
       for y in range(_NUM_POWS):
         for z in range(_NUM_STATS):
-          obs[x, y, z] = translated_game_state[x][y][z]
+          try:
+            obs[x, y, z] = translated_game_state[x][y][z]
+          except IndexError as e:
+            print(f"[dip]\t\tShape: {obs.shape}")
+            print(f"[dip]\t\t(x:{x} y:{y} z:{z})\t ({_NUM_LOCS}, {_NUM_POWS}, {_NUM_STATS})")
+            raise e
 
   def string_from(self, state: DipState, player) -> str:
     """Observation of `state` from the PoV of `player`, as a string."""

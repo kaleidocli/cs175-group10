@@ -150,5 +150,5 @@ class TicTacToeTest(absltest.TestCase):
       np.testing.assert_array_equal(py_obs.tensor, cc_obs.tensor)
 
 
-if __name__ == "__main__":
-  absltest.main()
+# if __name__ == "__main__":
+#   absltest.main()

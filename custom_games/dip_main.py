@@ -31,6 +31,8 @@ from open_spiel.python import rl_environment
 from open_spiel.python.algorithms import random_agent
 from open_spiel.python.algorithms import tabular_qlearner
 
+from dip import DipGame
+
 FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("num_episodes", int(5e4), "Number of train episodes.")
@@ -40,6 +42,7 @@ flags.DEFINE_boolean(
     "Whether to run an interactive play with the agent after training.",
 )
 
+dGame = DipGame()
 
 def pretty_board(time_step):
   """Returns the board in `time_step` in a human readable format."""
@@ -81,6 +84,7 @@ def eval_against_random_bots(env, trained_agents, random_agents, num_episodes):
       time_step = env.reset()
       while not time_step.last():
         player_id = time_step.observations["current_player"]
+        print(f"[dip_main]\t\tNow playing player_id={player_id}")
         agent_output = cur_agents[player_id].step(time_step, is_evaluation=True)
         time_step = env.step([agent_output.action])
       if time_step.rewards[player_pos] > 0:
@@ -92,7 +96,7 @@ def main(_):
   game = "tic_tac_toe"
   num_players = 2
 
-  env = rl_environment.Environment(game)
+  env = rl_environment.Environment(dGame)
   num_actions = env.action_spec()["num_actions"]
 
   agents = [
