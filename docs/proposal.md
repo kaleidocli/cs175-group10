@@ -29,14 +29,15 @@ we find them fitting.
 
 ## 2.4 Evaluation Plan
 1. Sanity test:  Score equals to the longest side of the arena.
-   - ie. If the arena is 10x20, then the goal score will be 20
+      - ie. If the arena is 10x20, then the goal score will be 20
 2. Baseline: Score equals half of the area of the arena.
-   - ie. If the arena is 10x10, then the goal score will be 50 
+      - ie. If the arena is 10x10, then the goal score will be 50 
 3. Goal 1: Same as baseline, but with following conditions
-   - Obstacles will randomly appear for an amount of time and disappear after a while.
+      - Obstacles will randomly appear for an amount of time and disappear after a while.
 4. Moonshot goal:
-   - There will be another snake using the same policy.
-   - A satisfying result in this case will be both snakes surviving and have length of a quarter of the arena.
+      - There will be another snake using the same policy.
+      - A satisfying result in this case will be both snakes surviving and have length of a quarter of the arena.
+
 We expect to reach goal 1. As for moonshot goal, the nature of the game is different so we are not sure if our policy
 would apply to the moonshot scenario.
 
