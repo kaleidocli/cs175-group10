@@ -32,6 +32,7 @@ from open_spiel.python.algorithms import random_agent
 from open_spiel.python.algorithms import tabular_qlearner
 
 from dip import DipGame
+from mylogger import log
 
 FLAGS = flags.FLAGS
 
@@ -72,7 +73,7 @@ def command_line_action(time_step):
   return action
 
 
-def eval_against_random_bots(env, trained_agents, random_agents, num_episodes):
+def _eval_against_random_bots(env, trained_agents, random_agents, num_episodes):
   """Evaluates `trained_agents` against `random_agents` for `num_episodes`."""
   wins = np.zeros(2)
   for player_pos in range(2):
@@ -84,7 +85,30 @@ def eval_against_random_bots(env, trained_agents, random_agents, num_episodes):
       time_step = env.reset()
       while not time_step.last():
         player_id = time_step.observations["current_player"]
-        print(f"[dip_main]\t\tNow playing player_id={player_id}")
+        log("dip_main", f"Now playing player_id={player_id}")
+        agent_output = cur_agents[player_id].step(time_step, is_evaluation=True)
+        time_step = env.step([agent_output.action])
+      if time_step.rewards[player_pos] > 0:
+        wins[player_pos] += 1
+  return wins / num_episodes
+
+def eval_against_random_bots(env, trained_agents, random_agents, num_episodes, dGame: DipGame):
+  """Evaluates `trained_agents` against `random_agents` for `num_episodes`."""
+  wins = np.zeros(dGame.NUM_PLAYERS)
+  for player_pos in range(dGame.NUM_PLAYERS):
+    cur_agents = []
+    # Generate cur_agents
+    for i in range(player_pos):
+      cur_agents.append(random_agents[i])
+    cur_agents.append(trained_agents[player_pos])
+    for i in range(player_pos + 1, dGame.NUM_PLAYERS):
+      cur_agents.append(random_agents[i])
+
+    for _ in range(num_episodes):
+      time_step = env.reset()
+      while not time_step.last():
+        player_id = time_step.observations["current_player"]
+        log("dip_main", f"Now playing player_id={player_id}")
         agent_output = cur_agents[player_id].step(time_step, is_evaluation=True)
         time_step = env.step([agent_output.action])
       if time_step.rewards[player_pos] > 0:
@@ -92,9 +116,10 @@ def eval_against_random_bots(env, trained_agents, random_agents, num_episodes):
   return wins / num_episodes
 
 
+
 def main(_):
   game = "tic_tac_toe"
-  num_players = 2
+  num_players = dGame.NUM_PLAYERS
 
   env = rl_environment.Environment(dGame)
   num_actions = env.action_spec()["num_actions"]
@@ -109,12 +134,12 @@ def main(_):
       random_agent.RandomAgent(player_id=idx, num_actions=num_actions)
       for idx in range(num_players)
   ]
-
+  log("dip_main", f"Starting session with 1 agent + {len(random_agents)} random agents")
   # 1. Train the agents
   training_episodes = FLAGS.num_episodes
   for cur_episode in range(training_episodes):
     if cur_episode % int(1e4) == 0:
-      win_rates = eval_against_random_bots(env, agents, random_agents, 1000)
+      win_rates = eval_against_random_bots(env, agents, random_agents, 1000, dGame)
       logging.info("Starting episode %s, win_rates %s", cur_episode, win_rates)
     time_step = env.reset()
     while not time_step.last():
@@ -130,33 +155,33 @@ def main(_):
     return
 
   # 2. Play from the command line against the trained agent.
-  human_player = 1
-  while True:
-    logging.info("You are playing as %s", "O" if human_player else "X")
-    time_step = env.reset()
-    while not time_step.last():
-      player_id = time_step.observations["current_player"]
-      if player_id == human_player:
-        agent_out = agents[human_player].step(time_step, is_evaluation=True)
-        logging.info("\n%s", agent_out.probs.reshape((3, 3)))
-        logging.info("\n%s", pretty_board(time_step))
-        action = command_line_action(time_step)
-      else:
-        agent_out = agents[1 - human_player].step(time_step, is_evaluation=True)
-        action = agent_out.action
-      time_step = env.step([action])
+  # human_player = 1
+  # while True:
+  #   logging.info("You are playing as %s", "O" if human_player else "X")
+  #   time_step = env.reset()
+  #   while not time_step.last():
+  #     player_id = time_step.observations["current_player"]
+  #     if player_id == human_player:
+  #       agent_out = agents[human_player].step(time_step, is_evaluation=True)
+  #       logging.info("\n%s", agent_out.probs.reshape((3, 3)))
+  #       logging.info("\n%s", pretty_board(time_step))
+  #       action = command_line_action(time_step)
+  #     else:
+  #       agent_out = agents[1 - human_player].step(time_step, is_evaluation=True)
+  #       action = agent_out.action
+  #     time_step = env.step([action])
 
-    logging.info("\n%s", pretty_board(time_step))
+  #   logging.info("\n%s", pretty_board(time_step))
 
-    logging.info("End of game!")
-    if time_step.rewards[human_player] > 0:
-      logging.info("You win")
-    elif time_step.rewards[human_player] < 0:
-      logging.info("You lose")
-    else:
-      logging.info("Draw")
-    # Switch order of players
-    human_player = 1 - human_player
+  #   logging.info("End of game!")
+  #   if time_step.rewards[human_player] > 0:
+  #     logging.info("You win")
+  #   elif time_step.rewards[human_player] < 0:
+  #     logging.info("You lose")
+  #   else:
+  #     logging.info("Draw")
+  #   # Switch order of players
+  #   human_player = 1 - human_player
 
 
 if __name__ == "__main__":

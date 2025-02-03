@@ -38,15 +38,12 @@ from tabulate import tabulate
 import json
 
 dipTrans = DipTranslator()
-_NUM_LOCS = dipTrans.get_loc_count()
-_NUM_POWS = dipTrans.get_power_count()
+_NUM_LOCS = dipTrans.LOC_COUNT
+_NUM_POWS = dipTrans.POWER_COUNT
 _NUM_MOVES = 4
 _NUM_STATS = 3
 
 _NUM_PLAYERS = 3  # adjusted
-_NUM_ROWS = _NUM_LOCS
-_NUM_COLS = _NUM_POWS
-_NUM_CELLS = _NUM_ROWS * _NUM_COLS
 _GAME_TYPE = pyspiel.GameType(
     short_name="python_dip",      # adjusted
     long_name="Python Diplomacy", # adjusted
@@ -77,6 +74,7 @@ class DipGame(pyspiel.Game):
 
   def __init__(self, params=None):
     super().__init__(_GAME_TYPE, _GAME_INFO, params or dict())
+    self.NUM_PLAYERS = _NUM_PLAYERS
 
   def new_initial_state(self):
     """Returns a state corresponding to the start of a game."""
@@ -117,6 +115,16 @@ class DipState(pyspiel.State):
     self._cur_player = 0
     self._player0_score = 0.0
     self._is_terminal = False
+    self._all_actions = []
+
+  def get_max_action_count(self) -> int:
+    # TYPE * SUPP_U * ACTION * TYPE * U * ACTION * LOC
+    print("U:", dipTrans.UNIT_TYPE_COUNT, "LOC:", dipTrans.LOC_COUNT, "A:", dipTrans.ACTION_TYPE_COUNT)
+    orderCount = dipTrans.UNIT_TYPE_COUNT * dipTrans.LOC_COUNT * dipTrans.ACTION_TYPE_COUNT * dipTrans.UNIT_TYPE_COUNT * dipTrans.LOC_COUNT * dipTrans.ACTION_TYPE_COUNT * dipTrans.LOC_COUNT
+    return orderCount * dipTrans.UNIT_TYPE_COUNT
+
+  def generate_all_actions(self):
+    pass
 
   # OpenSpiel (PySpiel) API functions are below. This is the standard set that
   # should be implemented by every perfect-information sequential-move game.

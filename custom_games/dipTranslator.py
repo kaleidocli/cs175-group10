@@ -24,6 +24,11 @@ class DipTranslator:
 
         self._action_id_to_action: dict[int, list[str]] = dict()
 
+        self.UNIT_TYPE_COUNT = 3        # [None, A, S]
+        self.LOC_COUNT = self._get_loc_count() + 1      # [None, Loc1,..]
+        self.ACTION_TYPE_COUNT = 6                      # [None, Hold, Move, Support, Convoy, Disband]
+        self.POWER_COUNT = self._get_power_count()
+
     def get_loc_idx_from_loc(self, loc: str) -> int | None:
         return self._loc_to_idx.get(loc.lower())
 
@@ -33,10 +38,10 @@ class DipTranslator:
     def get_power_from_power_idx(self, power_idx: int) -> str | None:
         return self._powers[power_idx] if power_idx < len(self._powers) else None
     
-    def get_power_count(self) -> int:
+    def _get_power_count(self) -> int:
         return len(self._power_to_idx)
     
-    def get_loc_count(self) -> int:
+    def _get_loc_count(self) -> int:
         return len(self._loc_to_idx)
     
     def _decode_raw_unit_text(self, raw_unit_text: str) -> tuple[int, int] | None:
