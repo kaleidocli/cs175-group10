@@ -42,10 +42,10 @@ def log(loc, msg):
     print(f"[{loc}]\t\t{msg}")
 
 class Direction(Enum):
-    UP = 1
-    RIGHT = 2
-    DOWN = 3
-    LEFT = 4
+    UP = 0
+    RIGHT = 1
+    DOWN = 2
+    LEFT = 3
 
 class SnakeGame:
     def __init__(self):
@@ -67,6 +67,8 @@ class SnakeGame:
 
         self.game_window: pygame.Surface = None
         self.score = 0
+        self._is_terminated = False
+        self._is_truncated = False
 
         self.snake_bpos = [10, 5]      # defining snake default position
         self.snake_body_bpos = [[10, 5],
@@ -78,7 +80,16 @@ class SnakeGame:
         self.does_food_exist = True
         self.snake_direction = Direction.RIGHT
 
-    def show_score(self, choice, color, font, size):
+    def get_score(self) -> int:
+        return self.score
+    
+    def is_terminated(self) -> bool:
+        return self._is_terminated
+    
+    def is_truncated(self) -> bool:
+        return self._is_truncated
+
+    def _show_score(self, choice, color, font, size):
     
         # creating font object score_font
         score_font = pygame.font.SysFont(font, size)
@@ -94,7 +105,7 @@ class SnakeGame:
         # displaying text
         self.game_window.blit(score_surface, score_rect)
     
-    def game_over(self):
+    def _game_over(self):
     
         # creating font object my_font
         my_font = pygame.font.SysFont('times new roman', 50)
@@ -114,6 +125,8 @@ class SnakeGame:
         # blit wil draw the text on screen
         self.game_window.blit(game_over_surface, game_over_rect)
         pygame.display.flip()
+
+        self._is_terminated = True
         
         # after 2 seconds we will quit the program
         time.sleep(2)
@@ -146,13 +159,16 @@ class SnakeGame:
 
     def _generate_random_loc_on_board(self) -> list[list[int]]:
         return [random.randrange(1, self.BOARD_X), random.randrange(1, self.BOARD_Y)]
-    
-    def get_observation(self) -> np.ndarray:
+
+    def get_board(self) -> np.ndarray:
         board: np.ndarray = np.zeros((self.BOARD_X, self.BOARD_Y))
         board[self.food_bpos[0], self.food_bpos[1]] = 2
         for bpos in self.snake_body_bpos:
             board[bpos[0], bpos[1]] = 1
         return board
+
+    def get_observation(self) -> np.ndarray:
+        return self.get_board()
     
     def get_legal_actions(self) -> list[Direction]:
         actions = [Direction.UP, Direction.RIGHT, Direction.DOWN, Direction.LEFT]
@@ -166,24 +182,17 @@ class SnakeGame:
             actions.remove(Direction.LEFT)
         return actions
     
-    def step(self):
-        # setting default snake direction towards
-        # right
-        input_direction = self.snake_direction
-
-        t_change_to = self._get_input_direction_from_keyboard_event()
-        input_direction = t_change_to if t_change_to != None else input_direction
-    
+    def step(self, action: Direction):
         # If two keys pressed simultaneously
         # we don't want snake to move into two
         # directions simultaneously
-        if input_direction == Direction.UP and self.snake_direction != Direction.DOWN:
+        if action == Direction.UP and self.snake_direction != Direction.DOWN:
             self.snake_direction = Direction.UP
-        if input_direction == Direction.DOWN and self.snake_direction != Direction.UP:
+        if action == Direction.DOWN and self.snake_direction != Direction.UP:
             self.snake_direction = Direction.DOWN
-        if input_direction == Direction.LEFT and self.snake_direction != Direction.RIGHT:
+        if action == Direction.LEFT and self.snake_direction != Direction.RIGHT:
             self.snake_direction = Direction.LEFT
-        if input_direction == Direction.RIGHT and self.snake_direction != Direction.LEFT:
+        if action == Direction.RIGHT and self.snake_direction != Direction.LEFT:
             self.snake_direction = Direction.RIGHT
     
         # Moving the snake
@@ -222,16 +231,18 @@ class SnakeGame:
     
         # Game Over conditions
         if self.snake_bpos[0] < 0 or self.snake_bpos[0] > self.BOARD_X-1:
-            self.game_over()
+            self._is_truncated = True
+            self._game_over()
         if self.snake_bpos[1] < 0 or self.snake_bpos[1] > self.BOARD_Y-1:
-            self.game_over()
+            self._is_truncated = True
+            self._game_over()
     
         # Touching the snake body
         for block in self.snake_body_bpos[1:]:
             if self.snake_bpos[0] == block[0] and self.snake_bpos[1] == block[1]:
-                self.game_over()
+                self._game_over()
 
-    def run(self):
+    def _run(self):
         # Initialising pygame
         pygame.init()
         
@@ -250,10 +261,17 @@ class SnakeGame:
 
         # Main Function
         while True:
-            self.step()
+            # setting default snake direction towards
+            # right
+            action = self.snake_direction
+
+            t_change_to = self._get_input_direction_from_keyboard_event()
+            action = t_change_to if t_change_to != None else action
+
+            self.step(action)
 
             # displaying score countinuously
-            self.show_score(1, self.WHITE, 'times new roman', 20)
+            self._show_score(1, self.WHITE, 'times new roman', 20)
         
             # Refresh game screen
             pygame.display.update()
@@ -262,4 +280,4 @@ class SnakeGame:
             fps.tick(self.SNAKE_SPEED)
 
 myGame = SnakeGame()
-myGame.run()
+myGame._run()
