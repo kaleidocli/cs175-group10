@@ -47,6 +47,12 @@ class Direction(Enum):
     DOWN = 2
     LEFT = 3
 
+class Element(Enum):
+    NONE = 0
+    SNAKE = 1
+    FOOD = 2
+    OBSTACLE = 3
+
 class SnakeGame:
     def __init__(self):
         self.SNAKE_SPEED = 30
@@ -162,9 +168,9 @@ class SnakeGame:
 
     def get_board(self) -> np.ndarray:
         board: np.ndarray = np.zeros((self.BOARD_X, self.BOARD_Y))
-        board[self.food_bpos[0], self.food_bpos[1]] = 2
+        board[self.food_bpos[0], self.food_bpos[1]] = Element.FOOD
         for bpos in self.snake_body_bpos:
-            board[bpos[0], bpos[1]] = 1
+            board[bpos[0], bpos[1]] = Element.SNAKE
         return board
 
     def get_observation(self) -> np.ndarray:
@@ -279,5 +285,6 @@ class SnakeGame:
             # Frame Per Second /Refresh Rate
             fps.tick(self.SNAKE_SPEED)
 
-myGame = SnakeGame()
-myGame._run()
+if __name__ == "__main__":
+    myGame = SnakeGame()
+    myGame._run()

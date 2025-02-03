@@ -1,10 +1,19 @@
 import gymnasium as gym
-from SnakeGame import SnakeGame, Direction
+import numpy as np
+from SnakeGame import SnakeGame, Direction, Element
 
 class SnakeGameEnv(gym.Env):
     def __init__(self):
+        super(SnakeGameEnv, self).__init__()
         self.game = SnakeGame()
         self.prev_score = 0
+
+        self.observation_shape = (self.game.BOARD_X, self.game.BOARD_Y, 1)
+        self.observation_space = gym.spaces.Box(
+            low = np.zeros(self.observation_shape), 
+            low = np.ones(self.observation_shape), 
+            dtype=np.integer
+            )
 
     def reset(self, seed: int | None = None):
         super().reset(seed=seed)
@@ -31,3 +40,6 @@ class SnakeGameEnv(gym.Env):
         
     def close(self):
         pass
+
+if __name__ == "__main__":
+    env = SnakeGameEnv()
