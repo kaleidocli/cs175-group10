@@ -2,3 +2,4 @@ snake_game/__pycache__/
 snake_game/logs/*
 snake_game/src/__pycache__/
 snake_game/src/utils/__pycache__/
+snake_game/ppo_snake_pixels.zip

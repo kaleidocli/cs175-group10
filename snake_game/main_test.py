@@ -11,18 +11,27 @@ from stable_baselines3.common.atari_wrappers import AtariWrapper
 from stable_baselines3.common.vec_env import VecFrameStack
 gym.register_envs(ale_py)
 
-from src.SnakeGameEnv import SnakeGameEnv
+from src.SnakeGameEnv import SnakeGameEnv, Observation_Type
 from src.SnakeGame import SnakeGame
 from src.utils.mylogger import log, LOG_LEVEL
 
-def snake_game_env_generator(render_mode='human') -> SnakeGameEnv:
-    return SnakeGameEnv(render_mode=render_mode)
+def snake_game_env_generator(**kwargs) -> SnakeGameEnv:
+    return SnakeGameEnv(**kwargs)
 
 def main():
     TOTAL_TIMESTEPS = 1000000     # default=1000000
-    IS_SAVING_LOG = False
+    TOTAL_EPOCHS = 16000
+    STEPS_PER_EPOCH = 2048
+    IS_SAVING_LOG = True
+    BOARD_DIMENSION = (10,10)
 
-    snakeEnv = SnakeGameEnv()
+    env_kwargs = { 
+        "render_mode": "rgb_array",
+        "obs_type": Observation_Type.IMAGE,
+        "x": BOARD_DIMENSION[0],
+        "y": BOARD_DIMENSION[1]
+        }
+    snakeEnv = SnakeGameEnv(**env_kwargs)
     snake_game_id = "SnakeGame"
     snake_game_reward_threshold = snakeEnv.game.BOARD_X * snakeEnv.game.BOARD_Y // 2        # Half the board is good
     is_snake_game_deterministic = False
@@ -34,20 +43,19 @@ def main():
 
     experiment_name = "ppo_cnn_cardinal_" + snake_game_id
     experiment_logdir = f"logs/{experiment_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-
     log("main", 
         f"""
         Start training. 
         (rw_thresh:{snake_game_reward_threshold}) 
         (is_deter:{is_snake_game_deterministic})
         (env_obs_shape:{snakeEnv.observation_space})
+        (obs_type:{env_kwargs['obs_type']})
         """, log_level=LOG_LEVEL.INFO)
 
     # Instantiate multiple parallel copies of the Breakout environment for faster data collection
     # A Monitor wrapper is included in make_vec_env
     # env = make_vec_env(snake_game_id, n_envs=8, seed=0, wrapper_class=AtariWrapper)
     # env = VecFrameStack(env, n_stack=4)
-    env_kwargs = { "render_mode": "rgb_array" }
     env = make_vec_env(snake_game_id, n_envs=8, seed=0, env_kwargs=env_kwargs)
 
     # Define a trigger function (e.g., record a video every 20,000 steps)
@@ -63,13 +71,15 @@ def main():
 
     # Use a CNN-based policy since observations are images.
     model = PPO(
-        "MlpPolicy", 
+        "CnnPolicy", 
         env, 
         verbose=1, 
         tensorboard_log=experiment_logdir if IS_SAVING_LOG else None,
-        gamma=.9    # default=.99
+        gamma=.99,    # default=.99
+        n_epochs=TOTAL_EPOCHS,
+        n_steps=STEPS_PER_EPOCH
         )
-    model.learn(total_timesteps=TOTAL_TIMESTEPS)
+    model.learn(total_timesteps=TOTAL_EPOCHS * STEPS_PER_EPOCH)
     model.save("ppo_snake_pixels")
 
 

@@ -65,25 +65,33 @@ class Element(Enum):
 
 class SnakeGame:
     def __init__(self, b_X = 10, b_Y = 10):
+        # Hypterparams =====
         self._IS_RENDERING = False
         self._IS_CARDINAL = True    # Snake's noving scheme. Cardinal or Left-right. Note: Cardinal is better
-        self.SNAKE_SPEED = 30
+        self._MAX_ELEMENT_COUNT = 3
         self.BOARD_X = b_X           # minimum 4x4
         self.BOARD_Y = b_Y
+        self.INIT_SNAKE_LEN = 3      # minimum = 3
+        # ==================
+
+        self.SNAKE_SPEED = 30
         self.BOARD_SHAPE = (self.BOARD_X, self.BOARD_Y)
         self.MAX_ACTION_COUNT = 4 if self._IS_CARDINAL else 3
-        
         # Window size
         self.WINDOW_SIZE_MULTIPLIER = 10
         self.WINDOW_X = self._to_window_metric(self.BOARD_X)
         self.WINDOW_Y = self._to_window_metric(self.BOARD_Y)
-        
         # defining colors
         self.BLACK = pygame.Color(0, 0, 0)
         self.WHITE = pygame.Color(255, 255, 255)
         self.RED = pygame.Color(255, 0, 0)
         self.GREEN = pygame.Color(0, 255, 0)
         self.BLUE = pygame.Color(0, 0, 255)
+        self._ELEMENT_TO_RGB = {
+            Element.NONE: [0,0,0],
+            Element.SNAKE: [255,255,255],
+            Element.FOOD: [0,255,45]
+        }
 
         self.game_window: pygame.Surface = None
         self._fps_controller = pygame.time.Clock()
@@ -92,12 +100,12 @@ class SnakeGame:
         self._is_truncated = False
         self._is_first_step = True
 
-        self.INIT_SNAKE_LEN = 3      # minimum = 3
         self.snake_bpos, self.snake_body_bpos = self._generate_snake()
         
         self.food_bpos = self._generate_random_loc_on_board()
         self.does_food_exist = True
         self.snake_direction = Direction.RIGHT
+        log("game", f"Init. (p:{(b_X, b_Y)}) (BS:{self.BOARD_SHAPE})")
 
     def get_score(self) -> int:
         return self.score
@@ -203,7 +211,6 @@ class SnakeGame:
 
     def get_board(self) -> np.ndarray:
         board: np.ndarray = np.zeros(self.BOARD_SHAPE, dtype=np.int64)
-        log("SnakeGame", f"Getting board. board={board.shape} food={self.food_bpos} snake={self.snake_body_bpos}")
         board[self.food_bpos[0], self.food_bpos[1]] = Element.FOOD.value
         for bpos in self.snake_body_bpos:
             try:
@@ -212,9 +219,24 @@ class SnakeGame:
                 pass
         return board
 
-    def get_observation(self, is_flatten=False) -> np.ndarray:
+    def get_observation(self, is_flatten=False, is_normalized=False, is_image_type=False) -> np.ndarray:
         """Get observation, with option to flatten it to (n,) shape"""
-        return self.get_board().flatten() if is_flatten else self.get_board()
+        res_board = None
+        if is_image_type:
+            # t_board: np.ndarray = self.get_board()
+            # res_board: np.ndarray = np.zeros((3, t_board.shape[0], t_board.shape[1]), dtype=np.int64)
+            # for x in range(t_board.shape[0]):
+            #     for y in range(t_board.shape[1]):
+            #         rgb = self._ELEMENT_TO_RGB[Element(t_board[x,y])]
+            #         res_board[0,x,y] = rgb[0]
+            #         res_board[1,x,y] = rgb[1]
+            #         res_board[2,x,y] = rgb[2]
+            return self.rgb_render(is_channel_first=True)
+        else:
+            res_board = self.get_board().flatten() if is_flatten else self.get_board()
+            if is_normalized:
+                res_board = res_board / self._MAX_ELEMENT_COUNT
+        return res_board
     
     def _get_direction_given_lr_move(self, lr_move: LR_Move) -> Direction:
         """Return the direction of the snake given left-right move. Based on snake's current direction."""
@@ -326,41 +348,40 @@ class SnakeGame:
                 log("SnakeGame", "DEATH: by hitting self")
                 self._game_over()
 
-    def rgb_render(self) -> np.ndarray:
+    def rgb_render(self, is_channel_first=False) -> np.ndarray:
         """Return a single frame representing the current state of the environment. 
         A frame is a np.ndarray with shape (x, y, 3) representing RGB values for an x-by-y pixel image.""" 
-        wboard: np.ndarray = np.zeros((self.WINDOW_X, self.WINDOW_Y, 3), dtype=np.int8)
-        # Color green
-        # food_wpos_x = self._to_window_metric(self.food_bpos[0])
-        # food_wpos_y = self._to_window_metric(self.food_bpos[1])
-        # wboard[food_wpos_x, food_wpos_y, 0] = 0
-        # wboard[food_wpos_x, food_wpos_y, 1] = 255
-        # wboard[food_wpos_x, food_wpos_y, 2] = 45
-        self._draw_on_wboard(wboard, self.food_bpos[0], self.food_bpos[1], 0, 255, 45)
+        if is_channel_first:
+            wboard: np.ndarray = np.zeros((3, self.WINDOW_X, self.WINDOW_Y), dtype=np.int8)
+        else:
+            wboard: np.ndarray = np.zeros((self.WINDOW_X, self.WINDOW_Y, 3), dtype=np.int8)
+        food_color = self._ELEMENT_TO_RGB[Element.FOOD]
+        self._draw_on_wboard(wboard, self.food_bpos[0], self.food_bpos[1], food_color[0], food_color[1], food_color[2], is_channel_first=is_channel_first)
         # Color white 
         for bpos in self.snake_body_bpos:
             try:
-                # wpos_x = self._to_window_metric(bpos[0])
-                # wpos_y = self._to_window_metric(bpos[1])
-                # wboard[wpos_x, wpos_y, 0] = 255
-                # wboard[wpos_x, wpos_y, 1] = 255
-                # wboard[wpos_x, wpos_y, 2] = 255
-                self._draw_on_wboard(wboard, bpos[0], bpos[1], 255, 255, 255)
+                snake_color = self._ELEMENT_TO_RGB[Element.SNAKE]
+                self._draw_on_wboard(wboard, bpos[0], bpos[1], snake_color[0], snake_color[1], snake_color[2], is_channel_first=is_channel_first)
             except IndexError:
                 pass
         return wboard
     
-    def _draw_on_wboard(self, wboard, bpos_anchor_x, bpos_anchor_y, r, g, b):
+    def _draw_on_wboard(self, wboard, bpos_anchor_x, bpos_anchor_y, r, g, b, is_channel_first=False):
         """Color at anchor, then upscale downward and rightward starting from the anchor."""
         for x in range(self._to_window_metric(bpos_anchor_x), self._to_window_metric(bpos_anchor_x+1)):
             for y in range(self._to_window_metric(bpos_anchor_y), self._to_window_metric(bpos_anchor_y+1)):
-                self._color_wpos(wboard, x, y, r, g, b)
+                self._color_wpos(wboard, x, y, r, g, b, is_channel_first=is_channel_first)
         
-    def _color_wpos(self, wboard, wpos_x, wpos_y, r, g, b):
+    def _color_wpos(self, wboard, wpos_x, wpos_y, r, g, b, is_channel_first=False):
         """Color a window position on the window board"""
-        wboard[wpos_x, wpos_y, 0] = r
-        wboard[wpos_x, wpos_y, 1] = g
-        wboard[wpos_x, wpos_y, 2] = b
+        if is_channel_first:
+            wboard[0, wpos_x, wpos_y] = r
+            wboard[1, wpos_x, wpos_y] = g
+            wboard[2, wpos_x, wpos_y] = b
+        else:
+            wboard[wpos_x, wpos_y, 0] = r
+            wboard[wpos_x, wpos_y, 1] = g
+            wboard[wpos_x, wpos_y, 2] = b
 
     def _render(self):
         if self._is_first_step:
