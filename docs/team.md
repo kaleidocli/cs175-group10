@@ -3,9 +3,7 @@ layout: default
 title:  Team
 ---
 
-# {{ page.title }}
-
-
+# Team members
 ## Khang Thai Ho
 ***UCI Net ID***: khangth1
 
