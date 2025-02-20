@@ -64,7 +64,7 @@ class Element(Enum):
     OBSTACLE = 3
 
 class SnakeGame:
-    def __init__(self, b_X = 10, b_Y = 10, is_random_spawn = False):
+    def __init__(self, b_X = 10, b_Y = 10, is_random_spawn = False, snake_speed = None):
         # Hypterparams =====
         self._IS_RENDERING = False
         self._IS_CARDINAL = True    # Snake's noving scheme. Cardinal or Left-right. Note: Cardinal is better
@@ -73,7 +73,7 @@ class SnakeGame:
         self.BOARD_Y = b_Y
         # ==================
 
-        self.SNAKE_SPEED = 30
+        self.SNAKE_SPEED = snake_speed if snake_speed != None else 30
         self.INIT_SNAKE_LEN = 3      # minimum = 3
         self.BOARD_SHAPE = (self.BOARD_X, self.BOARD_Y)
         self.MAX_ACTION_COUNT = 4 if self._IS_CARDINAL else 3
