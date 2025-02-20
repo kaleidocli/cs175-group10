@@ -64,17 +64,17 @@ class Element(Enum):
     OBSTACLE = 3
 
 class SnakeGame:
-    def __init__(self, b_X = 10, b_Y = 10):
+    def __init__(self, b_X = 10, b_Y = 10, is_random_spawn = False):
         # Hypterparams =====
         self._IS_RENDERING = False
         self._IS_CARDINAL = True    # Snake's noving scheme. Cardinal or Left-right. Note: Cardinal is better
         self._MAX_ELEMENT_COUNT = 3
         self.BOARD_X = b_X           # minimum 4x4
         self.BOARD_Y = b_Y
-        self.INIT_SNAKE_LEN = 3      # minimum = 3
         # ==================
 
         self.SNAKE_SPEED = 30
+        self.INIT_SNAKE_LEN = 3      # minimum = 3
         self.BOARD_SHAPE = (self.BOARD_X, self.BOARD_Y)
         self.MAX_ACTION_COUNT = 4 if self._IS_CARDINAL else 3
         # Window size
@@ -100,7 +100,9 @@ class SnakeGame:
         self._is_truncated = False
         self._is_first_step = True
 
-        self.snake_bpos, self.snake_body_bpos = self._generate_snake()
+        self.snake_bpos: list[int] = []
+        self.snake_body_bpos: list[tuple[int]] = []
+        self.snake_bpos, self.snake_body_bpos = self._generate_snake(is_random=is_random_spawn)
         
         self.food_bpos = self._generate_random_loc_on_board()
         self.does_food_exist = True
@@ -192,21 +194,56 @@ class SnakeGame:
     def _to_board_metric(self, screen_len) -> int:
         return screen_len // self.WINDOW_SIZE_MULTIPLIER
 
-    def _generate_random_loc_on_board(self) -> list[list[int]]:
-        return [random.randrange(1, self.BOARD_X), random.randrange(1, self.BOARD_Y)]
+    def _generate_random_loc_on_board(self) -> list[int]:
+        legal_locs: list[tuple[int]] = self._get_all_legal_locs()
+        return list(random.choice(legal_locs))
     
-    def _generate_snake(self):
+    def _get_all_legal_locs(self) -> list[tuple[int]]:
+        legal_locs: list[tuple[int]] = []
+        for b_x in range(self.BOARD_X):
+            for b_y in range(self.BOARD_Y):
+                if self._is_loc_legal(b_x, b_y):
+                    legal_locs.append((b_x, b_y))
+        return legal_locs
+    
+    def _is_loc_legal(self, b_x, b_y) -> bool:
+        if b_x < 0 or b_x >= self.BOARD_X or b_y < 0 or b_y >= self.BOARD_Y:
+            return False
+        for bpos in self.snake_body_bpos:
+            if b_x == bpos[0] and b_y == bpos[1]:
+                return False
+        return True
+    
+    def _generate_snake(self, is_random = False) -> tuple[int, int]:
         """
         Generate a snake. 
-        Initial shape will always be vertical.
-        Head:
+        Initial shape will always be vertical (if not random).
+        Head (if not random):
             - Initial X will be on the second quarter from left to right.
             - Initial Y will be on the third quarter from bottom to top.
         """
-        snake_bpos = [self.BOARD_X // 4, self.BOARD_Y // 4 * 2]
-        snake_body_bpos = []
-        for i in range(self.INIT_SNAKE_LEN):
-            snake_body_bpos.append([snake_bpos[0], snake_bpos[1]-i])
+        snake_body_bpos: list[tuple[int]] = []
+        if is_random:
+            snake_bpos = self._generate_random_loc_on_board()
+            snake_body_bpos.append(list(snake_bpos))
+            t_cursor_pos = list(snake_bpos)
+            for _ in range(self.INIT_SNAKE_LEN-1):
+                valid_next_poss = []
+                for ofs in [[1, 0], [-1, 0], [0, 1], [0, -1]]:
+                    t_pos = (t_cursor_pos[0] + ofs[0], t_cursor_pos[1] + ofs[1])
+                    is_valid = self._is_loc_legal(t_pos[0], t_pos[1])
+                    for bpos in snake_body_bpos:
+                        if bpos[0] == t_pos[0] and bpos[1] == t_pos[1]:
+                            is_valid = False
+                    if is_valid:
+                        valid_next_poss.append(t_pos)
+                chosen_next_pos = random.choice(valid_next_poss)
+                snake_body_bpos.append(chosen_next_pos)
+                t_cursor_pos = chosen_next_pos
+        else:
+            snake_bpos = [self.BOARD_X // 4, self.BOARD_Y // 4 * 2]
+            for i in range(self.INIT_SNAKE_LEN):
+                snake_body_bpos.append([snake_bpos[0], snake_bpos[1]-i])
         return tuple([snake_bpos, snake_body_bpos])
 
     def get_board(self) -> np.ndarray:
@@ -314,7 +351,7 @@ class SnakeGame:
         if self.snake_direction == Direction.RIGHT:
             self.snake_bpos[0] += 1
     
-        # Snake body growing mechanism
+        # Snake body moving and growing mechanism
         # if fruits and snakes collide then scores
         # will be incremented by 10
         self.snake_body_bpos.insert(0, list(self.snake_bpos))
@@ -352,9 +389,9 @@ class SnakeGame:
         """Return a single frame representing the current state of the environment. 
         A frame is a np.ndarray with shape (x, y, 3) representing RGB values for an x-by-y pixel image.""" 
         if is_channel_first:
-            wboard: np.ndarray = np.zeros((3, self.WINDOW_X, self.WINDOW_Y), dtype=np.int8)
+            wboard: np.ndarray = np.zeros((3, self.WINDOW_X, self.WINDOW_Y), dtype=np.uint8)
         else:
-            wboard: np.ndarray = np.zeros((self.WINDOW_X, self.WINDOW_Y, 3), dtype=np.int8)
+            wboard: np.ndarray = np.zeros((self.WINDOW_X, self.WINDOW_Y, 3), dtype=np.uint8)
         food_color = self._ELEMENT_TO_RGB[Element.FOOD]
         self._draw_on_wboard(wboard, self.food_bpos[0], self.food_bpos[1], food_color[0], food_color[1], food_color[2], is_channel_first=is_channel_first)
         # Color white 

@@ -14,16 +14,20 @@ class SnakeGameEnv(gym.Env):
         render_mode:    (str)               rgb_array, human\n
         obs_type:       (Observation_Type)  INPUT, IMAGE
         """
-
         self._FOOD_REWARD = 1
-        self._TURN_REWARD = -.025
+        self._TURN_REWARD = kwargs.get("turn_reward", 0)
         self._TERMINAL_REWARD = -1
         self.OBS_TYPE = kwargs.get("obs_type", Observation_Type.INPUT)
         board_x = kwargs.get("x", 10)
         board_y = kwargs.get("y", 10)
+        self._IS_PRINTING_OBS_TO_CONSOLE = kwargs.get("is_printing_to_console", False)
+        self._recorded_obss: list[np.ndarray, list[int], list[int]] = []
+        self._MAX_RECORDING_COUNT = 3
+        self._is_new = True
+        self._is_random_spawn = kwargs.get("is_random_spawn", False)
 
         super(SnakeGameEnv, self).__init__()
-        self.game = SnakeGame(b_X=board_x, b_Y=board_y)
+        self.game = SnakeGame(b_X=board_x, b_Y=board_y, is_random_spawn=self._is_random_spawn)
         self.prev_score = 0
 
         # for obs type IMAGE, the shape of obs_space is different from the board shape.
@@ -53,7 +57,8 @@ class SnakeGameEnv(gym.Env):
 
         self.render_mode = kwargs.get('render_mode', None)
         self.metadata = {
-            'render_modes': [None, 'rgb_array']
+            'render_modes': ['rgb_array'],
+            'render_fps': self.game.SNAKE_SPEED
         }
 
     def reset(self, seed: int | None = None, options = None):
@@ -61,28 +66,47 @@ class SnakeGameEnv(gym.Env):
         t_bX = self.game.BOARD_X
         t_bY = self.game.BOARD_Y
         super().reset(seed=seed)
-        self.game = SnakeGame(b_X=t_bX, b_Y=t_bY)
+        self.game = SnakeGame(b_X=t_bX, b_Y=t_bY, is_random_spawn=self._is_random_spawn)
         info = dict()
         self.prev_score = 0
         obs = self.game.get_observation(is_image_type= self.OBS_TYPE == Observation_Type.IMAGE)
+        self._is_new = True
         log("SnakeGameEnv", f"Resetted! (obs:{obs.shape})")
         return tuple([obs, info])
     
     def step(self, action):
         log("SnakeGameEnv", "Stepping...")
+        prev_direction = self.game.snake_direction
+        if self._IS_PRINTING_OBS_TO_CONSOLE and self._is_new:        # print at spawn
+            obs = self.game.get_observation(is_image_type= self.OBS_TYPE == Observation_Type.IMAGE)
+            print("=====" * 2 + " New " + "=====" * 2)
+            print(f"head: {self.game.snake_bpos}\tbody: {self.game.snake_body_bpos}")
+            print(obs)
         self.game.step(action)
         info = dict()
 
         reward = (self.game.get_score() - self.prev_score) * self._FOOD_REWARD
-        # if action != Move.NONE.value:
-        #     reward += self._TURN_REWARD
+        if prev_direction != self.game.snake_direction:     # penalty if turn
+            reward += self._TURN_REWARD
         self.prev_score = self.game.get_score()
         if self.game.is_terminated() or self.game.is_truncated():
             reward = self._TERMINAL_REWARD
 
         log("SnakeGameEnv", f"Stepped.\trw={reward}")
+        obs = self.game.get_observation(is_image_type= self.OBS_TYPE == Observation_Type.IMAGE)
+        self._recorded_obss.append((obs, self.game.snake_bpos.copy(), self.game.snake_body_bpos.copy()))
+        if len(self._recorded_obss) > self._MAX_RECORDING_COUNT:
+            del self._recorded_obss[0]
+        if self._IS_PRINTING_OBS_TO_CONSOLE and reward > 0:                   # print at eating
+            print("=====" * 2 + f" Scored! Last {self._MAX_RECORDING_COUNT} obss " + "=====" * 2)
+            print(f"Rew: {reward}")
+            for obs, snake_head, snake_body in self._recorded_obss:
+                print(f"head: {snake_head}\tbody: {snake_body}")
+                print(obs)
+            
+        self._is_new = False
         return tuple([
-            self.game.get_observation(is_image_type= self.OBS_TYPE == Observation_Type.IMAGE), 
+            obs, 
             reward, 
             self.game.is_terminated(), 
             self.game.is_truncated(), 

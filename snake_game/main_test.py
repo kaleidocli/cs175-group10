@@ -3,7 +3,7 @@ from datetime import datetime
 import gymnasium as gym
 import ale_py
 
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, A2C
 from stable_baselines3.common.env_util import make_vec_env
 from src.tensorboard_video_recorder import TensorboardVideoRecorder
 
@@ -19,18 +19,26 @@ def snake_game_env_generator(**kwargs) -> SnakeGameEnv:
     return SnakeGameEnv(**kwargs)
 
 def main():
-    TOTAL_TIMESTEPS = 1000000     # default=1000000
-    TOTAL_EPOCHS = 16000
+    # Params ==================================
+    TOTAL_TIMESTEPS = 10000000     # default=1000000
+    TOTAL_EPOCHS = 10
     STEPS_PER_EPOCH = 2048
     IS_SAVING_LOG = True
     BOARD_DIMENSION = (10,10)
+    TURN_REWARD = 0         # penalty when turning      # -.015
+    ALGO = ["ppo", "a2c"][1]
 
     env_kwargs = { 
-        "render_mode": "rgb_array",
-        "obs_type": Observation_Type.IMAGE,
+        "render_mode": "rgb_array",             # do not change
+        "obs_type": Observation_Type.IMAGE,     # INPUT: ndarray as multi-input for MlpPolicy. IMAGE: RGB ndarray for CnnPolicy
         "x": BOARD_DIMENSION[0],
-        "y": BOARD_DIMENSION[1]
+        "y": BOARD_DIMENSION[1],
+        "is_random_spawn": True,
+        "is_printing_to_console": False,          # printing on new or on eating
+        "turn_reward": TURN_REWARD
         }
+    # =========================================
+
     snakeEnv = SnakeGameEnv(**env_kwargs)
     snake_game_id = "SnakeGame"
     snake_game_reward_threshold = snakeEnv.game.BOARD_X * snakeEnv.game.BOARD_Y // 2        # Half the board is good
@@ -41,8 +49,8 @@ def main():
         reward_threshold=snake_game_reward_threshold,
         nondeterministic=is_snake_game_deterministic)
 
-    experiment_name = "ppo_cnn_cardinal_" + snake_game_id
-    experiment_logdir = f"logs/{experiment_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+    experiment_name = "a2c_cnn_rspwn_g8_" + snake_game_id
+    experiment_logdir = f"logs/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{experiment_name}"
     log("main", 
         f"""
         Start training. 
@@ -70,16 +78,27 @@ def main():
                                     tb_log_dir=experiment_logdir)
 
     # Use a CNN-based policy since observations are images.
-    model = PPO(
-        "CnnPolicy", 
-        env, 
-        verbose=1, 
-        tensorboard_log=experiment_logdir if IS_SAVING_LOG else None,
-        gamma=.99,    # default=.99
-        n_epochs=TOTAL_EPOCHS,
-        n_steps=STEPS_PER_EPOCH
+    if ALGO == "ppo":
+        model = PPO(
+            "MlpPolicy", 
+            env, 
+            verbose=1, 
+            tensorboard_log=experiment_logdir if IS_SAVING_LOG else None,
+            gamma=.9,    # default=.99
+            n_epochs=TOTAL_EPOCHS,
+            n_steps=STEPS_PER_EPOCH
+            )
+    elif ALGO == "a2c":
+        model = A2C(
+            "CnnPolicy",
+            env,
+            verbose=1,
+            tensorboard_log=experiment_logdir if IS_SAVING_LOG else None,
+            # device='cpu',
+            gamma=.9
         )
-    model.learn(total_timesteps=TOTAL_EPOCHS * STEPS_PER_EPOCH)
+    model.learn(total_timesteps=TOTAL_TIMESTEPS)
+    # model.learn(total_timesteps=TOTAL_EPOCHS * STEPS_PER_EPOCH)
     model.save("ppo_snake_pixels")
 
 
