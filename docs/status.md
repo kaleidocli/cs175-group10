@@ -5,6 +5,8 @@ title: Status
 
 ## Project Summary
 
+<iframe width="560" height="315" src="https://www.youtube.com/embed/K_Fv6u_26F4?si=XvP5hvc9qAVJakpY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
 ## Approach
 
 ### General Overview
@@ -15,17 +17,17 @@ Our approach involves setting up a Gymnasium environment to simulate the Snake g
 ### Setting Up the Snake Game Environment
 We use Gymnasium to create a custom RL environment for the Snake game. The environment is defined as follows:
 
-- **Observation Space:** A 3D NumPy array of integers representing the game arena. Each cell in the grid is assigned a value: 
-  - `0` for empty space, 
-  - `1` for the fruit, 
-  - `2` for the snake’s body. 
-  The array’s dimensions are `[height, width, channels]`, where channels encode the state of each cell.
+- **Observation Space:** A 3D NumPy array of integers representing the game arena. Each cell in the grid is assigned a value:
+    - `0` for empty space,
+    - `1` for the fruit,
+    - `2` for the snake’s body.
+      The array’s dimensions are `[height, width, channels]`, where channels encode the state of each cell.
 - **Action Space:** Discrete with four possible actions: `{0: Up, 1: Down, 2: Right, 3: Left}`.
 - **Terminal State:** The episode ends if the snake hits the wall (goes outside the arena) or collides with its own body.
 - **Reward Function:**
-  - `+1` when the snake eats the fruit (increasing its length and score),
-  - `-1` when the snake reaches a terminal state (hits the wall or itself),
-  - `0` otherwise (for each step where no fruit is eaten and the game continues).
+    - `+1` when the snake eats the fruit (increasing its length and score),
+    - `-1` when the snake reaches a terminal state (hits the wall or itself),
+    - `0` otherwise (for each step where no fruit is eaten and the game continues).
 
 The Gymnasium environment includes the following key methods:
 - **`step(action)`**: Updates the environment based on the given action. The snake moves in the specified direction (Up, Down, Right, or Left). If the action is invalid (e.g., reversing direction into itself), the snake continues in its current direction. Returns the new observation, reward, and whether the episode has ended.
@@ -38,8 +40,9 @@ This setup provides a clean interface for the RL algorithms to interact with the
 ### Training Process
 We train two separate models using A2C and PPO from Stable-Baselines3 to compare their performance. Both algorithms process the observation space (the 3D grid) as an image input, using a convolutional neural network (CNN) as a feature extractor to convert the raw grid into a feature vector representing the current state `s`. This vector is then fed into a policy network to select an action `a`. The policy network architecture follows the default CNN setup in Stable-Baselines3, as shown below:
 
-![Network Architecture](https://stable-baselines3.readthedocs.io/en/master/_images/net_arch.png)  
-*Source: [Stable-Baselines3 Documentation](https://stable-baselines3.readthedocs.io/en/master/guide/custom_policy.html)*
+<figure><img src="https://stable-baselines3.readthedocs.io/en/master/_images/net_arch.png" height="300">
+	<figcaption>Figure 1. Source: https://stable-baselines3.readthedocs.io/en/master/guide/custom_policy.html</figcaption>
+</figure>
 
 Below, we explain how A2C and PPO work and how we apply them to the Snake game.
 
@@ -58,7 +61,7 @@ using gradient ascent. Meanwhile, the critic minimizes the loss:
 \[ L(w) = E[(r + γ * V(s') - V(s))^2] \]
 where `r` is the reward, `γ` is the discount factor (set to 0.99 by default), and `s'` is the next state.
 
-For the Snake game, A2C takes the 3D observation grid, extracts features with the CNN, and outputs action probabilities (e.g., 25% Up, 25% Down, etc.). We train for 1 million timesteps, using Stable-Baselines3’s default hyperparameters: learning rate = 0.0007, `n_steps` = 5 (steps per update), and `gamma` = 0.99. These values are sourced from the library’s documentation, and we did not tune them further due to computational constraints.
+For the Snake game, A2C takes the 3D observation grid, extracts features with the CNN, and outputs action probabilities (e.g., 25% Up, 25% Down, etc.). We train for 10 million timesteps, using Stable-Baselines3’s default hyperparameters: learning rate = 0.0007, `n_steps` = 5 (steps per update), and and our `gamma` = 0.99. These values are sourced from the library’s documentation, and we did not tune them further due to computational constraints.
 
 #### Training with PPO
 PPO is a more stable policy gradient method that improves on A2C by constraining policy updates to avoid large, destabilizing changes. Like A2C, it uses an actor-critic framework but introduces a clipped objective function to limit how much the policy can change in each update.
@@ -72,15 +75,50 @@ where:
 
 The clipping ensures that the policy doesn’t deviate too far from the previous version, improving training stability. The critic’s loss is the same as in A2C.
 
-For the Snake game, PPO processes the observation grid similarly to A2C, using the same CNN feature extractor. We train for 1 million timesteps with default hyperparameters from Stable-Baselines3: learning rate = 0.0003, `n_steps` = 2048, `clip_range` = 0.2, and `gamma` = 0.99. These defaults are well-documented and widely used, so we kept them unchanged.
+For the Snake game, PPO processes the observation grid similarly to A2C, using the same CNN feature extractor. We train for 1 million timesteps with default hyperparameters from Stable-Baselines3: `n_steps` = 2048, `clip_range` = 0.2, and our `gamma` = 0.99 and learning rate = 0.00025. These defaults are well-documented and widely used, so we kept them unchanged.
 
 ### Hyperparameters and Reproducibility
 Both models use the default CNN architecture from Stable-Baselines3 (two convolutional layers followed by a fully connected layer). We train each model for 1 million timesteps, which corresponds to roughly 1 million interactions with the environment (though episodes terminate earlier upon failure). The training data is generated on-the-fly by the Gymnasium environment, so no external dataset is required. For reproducibility, we set a random seed of 42 in both the environment and the algorithms.
 
+### Evaluation
 We plan to evaluate performance by comparing the average score (total fruit eaten per episode) across 100 test episodes for each model after training. This will determine whether A2C or PPO performs better for the Snake game.
+<figure><img src="https://imgur.com/STH6m3j.png" height="300">
+	<figcaption>Figure 2. Mean rewards over 10 mil training steps of PPO model (grey) vs. A2C model (green)</figcaption>
+</figure>
 
-## Evaluation
+#### A2C model
+- Training evaluation: As shown in fig 02, we observed a mean fluctuation of around 1. Interestingly, we noticed a significant jump in mean score between 3 mil and 4 mil steps. At the end of training, we observed a mean score of 4.18.
+- Final evaluation: During final evaluation, we observed a mean reward of approximately 7.
+  <figure><img src="https://imgur.com/6BtTiqX.gif" height="300">
+  <figcaption>Figure 3. A2C final evaluation's mean reward</figcaption>
+</figure>
+
+#### PPO model
+- Training evaluation: As shown in Fig 02, we observed a mean fluctuation of around .3. Noticably, there is a jumped in mean score at the beginning. At the end of training, we observed a mean score of 4.7.
+- Final evaluation: During final evaluation, we observed a mean reward of approximately 4.8
+  <figure><img src="https://imgur.com/EJEePXL.gif" height="300">
+  <figcaption>Figure 4. PPO final evaluation's mean reward</figcaption>
+</figure>
+
+#### Observation
+- Looking at Figure 2, A2C model performs better than PPO model throughout the training process, as well as final evaluation.
+- A problem with A2C model is that at first, it wastes lots of the time for little returns. Figure 5 show the mean episode length for A2C model is much higher and fluctuating than PPO model in the beginning. Yet during those same timesteps, PPO model gets better mean rewards.
+  <figure><img src="https://imgur.com/vUazCSz.png" height="300">
+  <figcaption>Figure 5. Mean episode's length over 10 mil training steps of PPO model (grey) vs. A2C model (green) </figcaption>
+</figure>
 
 ## Remaining Goals and Challenges
+As for our evaluation goal, we have achieved the sanity goal, which was reaching a mean score approximating the length of one side of the arena. However, we are still far from meeting the baseline goal of achieving a mean score equal to half the arena's size. In retrospect, we may have overestimated our capability and set our baseline goal too ambitious.
 
-## Resources Used
+Another challenge we're facing is the length the learning process of both models. They take too long and yet they yield unsatisfying result. We intend to optimize the learning process, taking notes from the AtariWrapper and how it improves the process.
+Nevertheless, we would like to strive for the baseline goal regardless. 
+
+Even if we do not meet the baseline goal, we will still carry out our goal 1, which is spawning obstacles within the arena as well as extra timed fruits that disappear after certain amount of time. In that case, we would like to see how the changes would affect the learning process of both algorithms.
+
+## Resources Used:
+- [Snake Game](https://github.com/PavanAnanthSharma/Snake-Game-using-Python) by PavanAnanthSharma
+- [Gymnasium](https://gymnasium.farama.org/) for RL environment and documentation.
+- [Stable-Baseline3](https://stable-baselines3.readthedocs.io/) for A2C and PPO implementation, and documentation.
+- [Series on RL Basics](https://www.youtube.com/watch?v=BBAvXxIInMc&list=PLN8j_qfCJpNg5-6LcqGn_LZMyB99GoYba&index=1 "https://www.youtube.com/watch?v=BBAvXxIInMc&list=PLN8j_qfCJpNg5-6LcqGn_LZMyB99GoYba") by Luke Ditria
+- [Blog on PPO Implementation details](https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/)
+
