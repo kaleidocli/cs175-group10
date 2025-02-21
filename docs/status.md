@@ -89,21 +89,21 @@ We plan to evaluate performance by comparing the average score (total fruit eate
 #### A2C model
 - Training evaluation: As shown in fig 02, we observed a mean fluctuation of around 1. Interestingly, we noticed a significant jump in mean score between 3 mil and 4 mil steps. At the end of training, we observed a mean score of 4.18.
 - Final evaluation: During final evaluation, we observed a mean reward of approximately 7.
-  <figure><img src="https://imgur.com/6BtTiqX.gif" height="300">
+<figure><img src="https://imgur.com/6BtTiqX.gif" height="300">
   <figcaption>Figure 3. A2C final evaluation's mean reward</figcaption>
 </figure>
 
 #### PPO model
 - Training evaluation: As shown in Fig 02, we observed a mean fluctuation of around .3. Noticably, there is a jumped in mean score at the beginning. At the end of training, we observed a mean score of 4.7.
 - Final evaluation: During final evaluation, we observed a mean reward of approximately 4.8
-  <figure><img src="https://imgur.com/EJEePXL.gif" height="300">
+<figure><img src="https://imgur.com/EJEePXL.gif" height="300">
   <figcaption>Figure 4. PPO final evaluation's mean reward</figcaption>
 </figure>
 
 #### Observation
 - Looking at Figure 2, A2C model performs better than PPO model throughout the training process, as well as final evaluation.
 - A problem with A2C model is that at first, it wastes lots of the time for little returns. Figure 5 show the mean episode length for A2C model is much higher and fluctuating than PPO model in the beginning. Yet during those same timesteps, PPO model gets better mean rewards.
-  <figure><img src="https://imgur.com/vUazCSz.png" height="300">
+<figure><img src="https://imgur.com/vUazCSz.png" height="300">
   <figcaption>Figure 5. Mean episode's length over 10 mil training steps of PPO model (grey) vs. A2C model (green) </figcaption>
 </figure>
 
