@@ -19,22 +19,25 @@ from src.utils.mylogger import log, LOG_LEVEL
 def snake_game_env_generator(**kwargs) -> SnakeGameEnv:
     return SnakeGameEnv(**kwargs)
 
-MODEL_NAME_ON_DISK = "ppo_snake_pixels"
+MODEL_NAME_ON_DISK = "a2c_snake_8x8"
 SNAKE_GAME_ID = "SnakeGame"
 # Params ==================================
-TOTAL_TIMESTEPS = 10000000     # default=1000000
+TOTAL_TIMESTEPS = 10000000     # default=1,000,000
 TOTAL_EPOCHS = 10
 STEPS_PER_EPOCH = 2048
-IS_SAVING_LOG = False
+LEARNING_RATE = .00025
+IS_SAVING_LOG = True
 BOARD_DIMENSION = (10,10)
+ARENA_DIMENSION = [8,8]             # None if arena == board
 TURN_REWARD = 0         # penalty when turning      # -.015
-ALGO = ["ppo", "a2c"][1]
+ALGO = ["ppo", "a2c"][0]
 
 env_kwargs = { 
     "render_mode": "rgb_array",             # do not change
     "obs_type": Observation_Type.IMAGE,     # INPUT: ndarray as multi-input for MlpPolicy. IMAGE: RGB ndarray for CnnPolicy
     "x": BOARD_DIMENSION[0],
     "y": BOARD_DIMENSION[1],
+    "arena_size": ARENA_DIMENSION,
     "is_random_spawn": True,
     "is_printing_to_console": False,          # printing on new or on eating
     "turn_reward": TURN_REWARD,
@@ -52,15 +55,18 @@ def main(is_testing_final=False):
         reward_threshold=snake_game_reward_threshold,
         nondeterministic=is_snake_game_deterministic)
 
-    experiment_name = "a2c_cnn_rspwn_g8_" + SNAKE_GAME_ID
+    experiment_name = "a2c_cnn_8x8" + SNAKE_GAME_ID
     experiment_logdir = f"logs/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{experiment_name}"
     log("main", 
         f"""
         Start training. 
+        (board:{BOARD_DIMENSION}, arena:{ARENA_DIMENSION})
         (rw_thresh:{snake_game_reward_threshold}) 
         (is_deter:{is_snake_game_deterministic})
         (env_obs_shape:{snakeEnv.observation_space})
         (obs_type:{env_kwargs['obs_type']})
+        (algo: {ALGO}),
+        (LR={LEARNING_RATE})
         """, log_level=LOG_LEVEL.INFO)
 
     # Instantiate multiple parallel copies of the Breakout environment for faster data collection
@@ -83,13 +89,14 @@ def main(is_testing_final=False):
     # Use a CNN-based policy since observations are images.
     if ALGO == "ppo":
         model = PPO(
-            "MlpPolicy", 
+            "CnnPolicy", 
             env, 
             verbose=1, 
-            tensorboard_log=experiment_logdir if IS_SAVING_LOG else None,
+            tensorboard_log=experiment_logdir if (IS_SAVING_LOG and not is_testing_final) else None,
             gamma=.9,    # default=.99
             n_epochs=TOTAL_EPOCHS,
-            n_steps=STEPS_PER_EPOCH
+            n_steps=STEPS_PER_EPOCH,
+            learning_rate=LEARNING_RATE
             )
     elif ALGO == "a2c":
         model = A2C(
@@ -101,19 +108,26 @@ def main(is_testing_final=False):
             gamma=.9
         )
     if is_testing_final:            # run to get full trajectory
-        model = A2C.load(MODEL_NAME_ON_DISK)
+        model = A2C.load(f"bin/{MODEL_NAME_ON_DISK}")
+        scores = []
 
         obs = env.reset()
         while True:
             action, _states = model.predict(obs)
-            obs, rewards, dones, info = env.step(action)
+            obs, rewards, dones, infos = env.step(action)
             env.render("human")
+
+            for info in infos:
+                if info["is_terminal"]:
+                    scores.append(info["score"])
+                    log("main_test", f"Total runs: {len(scores)}\tMean score: {(sum(scores) / len(scores)):4f}", log_level=LOG_LEVEL.INFO)
+
             sleep(0.1)
             
     else:                           # train and save model to disk
         model.learn(total_timesteps=TOTAL_TIMESTEPS)
         # model.learn(total_timesteps=TOTAL_EPOCHS * STEPS_PER_EPOCH)
-        model.save(MODEL_NAME_ON_DISK)
+        model.save(f"bin/{MODEL_NAME_ON_DISK}")
 
 if __name__ == '__main__':
     main(is_testing_final=False)

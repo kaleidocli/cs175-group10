@@ -63,14 +63,21 @@ class Element(Enum):
     FOOD = 2
     OBSTACLE = 3
 
+# def log(loc, msg, log_level=1):
+#     print(f"[{loc}]\t\t{msg}")
+
 class SnakeGame:
-    def __init__(self, b_X = 10, b_Y = 10, is_random_spawn = False, snake_speed = None):
+    def __init__(self, b_X = 10, b_Y = 10, is_random_spawn = False, snake_speed = None, arena_size: list = None):
         # Hypterparams =====
         self._IS_RENDERING = False
         self._IS_CARDINAL = True    # Snake's noving scheme. Cardinal or Left-right. Note: Cardinal is better
         self._MAX_ELEMENT_COUNT = 3
         self.BOARD_X = b_X           # minimum 4x4
         self.BOARD_Y = b_Y
+        self.ARENA_X = arena_size[0] if arena_size != None else None    # Arena is not treated as boundary!
+        self.ARENA_Y = arena_size[1] if arena_size != None else None    # Only board size matters as boundary checks!
+                                                                        # If none, arena size == board size.
+                                                                        # These are mostly used for env and debugging.
         # ==================
 
         self.SNAKE_SPEED = snake_speed if snake_speed != None else 30
@@ -87,10 +94,12 @@ class SnakeGame:
         self.RED = pygame.Color(255, 0, 0)
         self.GREEN = pygame.Color(0, 255, 0)
         self.BLUE = pygame.Color(0, 0, 255)
+        self.GREY = pygame.Color(100, 125, 160)
         self._ELEMENT_TO_RGB = {
             Element.NONE: [0,0,0],
             Element.SNAKE: [255,255,255],
-            Element.FOOD: [0,255,45]
+            Element.FOOD: [0,255,45],
+            Element.OBSTACLE: [100, 125, 160]
         }
 
         self.game_window: pygame.Surface = None
@@ -99,6 +108,10 @@ class SnakeGame:
         self._is_terminated = False
         self._is_truncated = False
         self._is_first_step = True
+
+        self.obstacles_bpos: list[list[int]] = []               # Must generate obstacles before snake/food for legal checking
+        if arena_size != None:
+            self._generate_wall(arena_size[0], arena_size[1])
 
         self.snake_bpos: list[int] = []
         self.snake_body_bpos: list[tuple[int]] = []
@@ -212,6 +225,9 @@ class SnakeGame:
         for bpos in self.snake_body_bpos:
             if b_x == bpos[0] and b_y == bpos[1]:
                 return False
+        for bpos in self.obstacles_bpos:
+            if b_x == bpos[0] and b_y == bpos[1]:
+                return False
         return True
     
     def _generate_snake(self, is_random = False) -> tuple[int, int]:
@@ -245,6 +261,17 @@ class SnakeGame:
             for i in range(self.INIT_SNAKE_LEN):
                 snake_body_bpos.append([snake_bpos[0], snake_bpos[1]-i])
         return tuple([snake_bpos, snake_body_bpos])
+    
+    def _generate_wall(self, arena_x: int, arena_y: int) -> None:
+        """
+        Arena is defined as a playable space in a board. 
+        - If arena size is smaller than board size, create wall (obstacles) on board space that is not arena.
+        - Otherwise, ignore.
+        """
+        for x in range(self.BOARD_X):
+            for y in range(self.BOARD_Y):
+                if (x >= arena_x and x < self.BOARD_X) or (y >= arena_y and y < self.BOARD_Y):
+                    self.obstacles_bpos.append([x,y])
 
     def get_board(self) -> np.ndarray:
         board: np.ndarray = np.zeros(self.BOARD_SHAPE, dtype=np.int64)
@@ -252,6 +279,11 @@ class SnakeGame:
         for bpos in self.snake_body_bpos:
             try:
                 board[bpos[0], bpos[1]] = Element.SNAKE.value
+            except IndexError:
+                pass
+        for bpos in self.obstacles_bpos:
+            try:
+                board[bpos[0], bpos[1]] = Element.OBSTACLE.value
             except IndexError:
                 pass
         return board
@@ -385,6 +417,12 @@ class SnakeGame:
                 log("SnakeGame", "DEATH: by hitting self")
                 self._game_over()
 
+        # Hitting obstacles
+        for block in self.obstacles_bpos:
+            if self.snake_bpos[0] == block[0] and self.snake_bpos[1] == block[1]:
+                log("SnakeGame", "DEATH: by hitting obstacles")
+                self._game_over()
+
     def rgb_render(self, is_channel_first=False) -> np.ndarray:
         """Return a single frame representing the current state of the environment. 
         A frame is a np.ndarray with shape (x, y, 3) representing RGB values for an x-by-y pixel image.""" 
@@ -392,13 +430,21 @@ class SnakeGame:
             wboard: np.ndarray = np.zeros((3, self.WINDOW_X, self.WINDOW_Y), dtype=np.uint8)
         else:
             wboard: np.ndarray = np.zeros((self.WINDOW_X, self.WINDOW_Y, 3), dtype=np.uint8)
+        # Food: green
         food_color = self._ELEMENT_TO_RGB[Element.FOOD]
         self._draw_on_wboard(wboard, self.food_bpos[0], self.food_bpos[1], food_color[0], food_color[1], food_color[2], is_channel_first=is_channel_first)
-        # Color white 
+        # Snake: white 
         for bpos in self.snake_body_bpos:
             try:
                 snake_color = self._ELEMENT_TO_RGB[Element.SNAKE]
                 self._draw_on_wboard(wboard, bpos[0], bpos[1], snake_color[0], snake_color[1], snake_color[2], is_channel_first=is_channel_first)
+            except IndexError:
+                pass
+        # Obstacles: grey
+        for bpos in self.obstacles_bpos:
+            try:
+                obstacle_color = self._ELEMENT_TO_RGB[Element.OBSTACLE]
+                self._draw_on_wboard(wboard, bpos[0], bpos[1], obstacle_color[0], obstacle_color[1], obstacle_color[2], is_channel_first=is_channel_first)
             except IndexError:
                 pass
         return wboard
@@ -440,6 +486,10 @@ class SnakeGame:
             wpos = [self._to_window_metric(bpos[0]), self._to_window_metric(bpos[1])]
             pygame.draw.rect(self.game_window, self.GREEN,
                             pygame.Rect(wpos[0], wpos[1], 10, 10))
+        for bpos in self.obstacles_bpos:
+            wpos = [self._to_window_metric(bpos[0]), self._to_window_metric(bpos[1])]
+            pygame.draw.rect(self.game_window, self.GREY,
+                            pygame.Rect(wpos[0], wpos[1], 10, 10))
         pygame.draw.rect(self.game_window, self.WHITE, pygame.Rect(
             self._to_window_metric(self.food_bpos[0]), self._to_window_metric(self.food_bpos[1]), 10, 10))
 
@@ -454,7 +504,7 @@ class SnakeGame:
 
     def _run(self):
         self._IS_RENDERING = True
-        self.SNAKE_SPEED = 15
+        self.SNAKE_SPEED = 5
         # Initialising pygame
         pygame.init()
         
@@ -486,5 +536,5 @@ class SnakeGame:
             fps.tick(self.SNAKE_SPEED)
 
 # if __name__ == "__main__":
-#     myGame = SnakeGame()
+#     myGame = SnakeGame(b_X=10, b_Y=10, arena_size=[8,8])
 #     myGame._run()

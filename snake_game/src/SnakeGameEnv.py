@@ -20,6 +20,7 @@ class SnakeGameEnv(gym.Env):
         self.OBS_TYPE = kwargs.get("obs_type", Observation_Type.INPUT)
         board_x = kwargs.get("x", 10)
         board_y = kwargs.get("y", 10)
+        arena_size = kwargs.get("arena_size", None)
         self._IS_PRINTING_OBS_TO_CONSOLE = kwargs.get("is_printing_to_console", False)
         self._recorded_obss: list[np.ndarray, list[int], list[int]] = []
         self._MAX_RECORDING_COUNT = 3
@@ -28,7 +29,12 @@ class SnakeGameEnv(gym.Env):
         self.GAME_FPS = kwargs.get("fps", None)
 
         super(SnakeGameEnv, self).__init__()
-        self.game = SnakeGame(b_X=board_x, b_Y=board_y, is_random_spawn=self._is_random_spawn, snake_speed=self.GAME_FPS)
+        self.game = SnakeGame(
+            b_X=board_x, 
+            b_Y=board_y, 
+            is_random_spawn=self._is_random_spawn, 
+            snake_speed=self.GAME_FPS, 
+            arena_size=arena_size)
         self.prev_score = 0
 
         # for obs type IMAGE, the shape of obs_space is different from the board shape.
@@ -67,7 +73,12 @@ class SnakeGameEnv(gym.Env):
         t_bX = self.game.BOARD_X
         t_bY = self.game.BOARD_Y
         super().reset(seed=seed)
-        self.game = SnakeGame(b_X=t_bX, b_Y=t_bY, is_random_spawn=self._is_random_spawn, snake_speed=self.GAME_FPS)
+        self.game = SnakeGame(
+            b_X=t_bX, 
+            b_Y=t_bY, 
+            is_random_spawn=self._is_random_spawn, 
+            snake_speed=self.GAME_FPS,
+            arena_size=[self.game.ARENA_X, self.game.ARENA_Y] if self.game.ARENA_X != None else None)
         info = dict()
         self.prev_score = 0
         obs = self.game.get_observation(is_image_type= self.OBS_TYPE == Observation_Type.IMAGE)
@@ -84,7 +95,6 @@ class SnakeGameEnv(gym.Env):
             print(f"head: {self.game.snake_bpos}\tbody: {self.game.snake_body_bpos}")
             print(obs)
         self.game.step(action)
-        info = dict()
 
         reward = (self.game.get_score() - self.prev_score) * self._FOOD_REWARD
         if prev_direction != self.game.snake_direction:     # penalty if turn
@@ -106,6 +116,10 @@ class SnakeGameEnv(gym.Env):
                 print(obs)
             
         self._is_new = False
+        info = {
+            "score": self.game.score,
+            "is_terminal": self.game.is_terminated() or self.game.is_truncated()
+        }
         return tuple([
             obs, 
             reward, 
