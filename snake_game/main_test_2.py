@@ -3,6 +3,8 @@ from time import sleep
 
 import gymnasium as gym
 import ale_py
+import torch.nn as nn
+import torch
 
 from stable_baselines3 import PPO, A2C
 from stable_baselines3.common.env_util import make_vec_env
@@ -16,25 +18,24 @@ from src.SnakeGameEnv import SnakeGameEnv, Observation_Type
 from src.SnakeGame import SnakeGame
 from src.utils.mylogger import log, LOG_LEVEL
 
+# Import our exact clone of NatureCNN
 from src.custom_cnn import CustomCNN
 
 def snake_game_env_generator(**kwargs) -> SnakeGameEnv:
     return SnakeGameEnv(**kwargs)
 
-MODEL_NAME_ON_DISK = "res_L3_exrew"
+MODEL_NAME_ON_DISK = "a2c_resi_L9"
 SNAKE_GAME_ID = "SnakeGame"
 # Params ==================================
 TOTAL_TIMESTEPS = 2500000     # default=1,000,000
 TOTAL_EPOCHS = 10
 STEPS_PER_EPOCH = 2048
-LEARNING_RATE = .00025              # prev .00025
-IS_SAVING_LOG = True
+LEARNING_RATE = .00025
+IS_SAVING_LOG = False
 BOARD_DIMENSION = (10,10)
 ARENA_DIMENSION = [8,8]             # None if arena == board
 TURN_REWARD = 0         # penalty when turning      # -.015
 ALGO = ["ppo", "a2c"][1]
-HAS_EXTRA_FOOD = True
-OBSTACLE_SETTINGS = [False, False]
 
 env_kwargs = { 
     "render_mode": "rgb_array",             # do not change
@@ -45,9 +46,7 @@ env_kwargs = {
     "is_random_spawn": True,
     "is_printing_to_console": False,          # printing on new or on eating
     "turn_reward": TURN_REWARD,
-    "fps": None,                               # default = None (which is 30)
-    "has_extra_food": HAS_EXTRA_FOOD,
-    "obstacle_settings": OBSTACLE_SETTINGS     # obst w/ rect in the middle of arena
+    "fps": None                               # default = None (which is 30)
     }
 # =========================================
 
@@ -71,24 +70,20 @@ def main(is_testing_final=False):
         reward_threshold=snake_game_reward_threshold,
         nondeterministic=is_snake_game_deterministic)
 
-    experiment_name = ALGO + "_" + MODEL_NAME_ON_DISK
+    experiment_name = f"{ALGO}_{MODEL_NAME_ON_DISK}"
     experiment_logdir = f"logs/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{experiment_name}"
     log("main", 
         f"""
-        Start training. 
+        Start training with NatureCNN Clone (should match default). 
         (board:{BOARD_DIMENSION}, arena:{ARENA_DIMENSION})
-        (extra_food: {HAS_EXTRA_FOOD})
         (rw_thresh:{snake_game_reward_threshold}) 
         (is_deter:{is_snake_game_deterministic})
         (env_obs_shape:{snakeEnv.observation_space})
         (obs_type:{env_kwargs['obs_type']})
         (algo: {ALGO}),
-        (LR={LEARNING_RATE}),
-        (obst_settings: {OBSTACLE_SETTINGS})
+        (LR={LEARNING_RATE})
         """, log_level=LOG_LEVEL.INFO)
 
-    # Instantiate multiple parallel copies of the Breakout environment for faster data collection
-    # A Monitor wrapper is included in make_vec_env
     env = make_vec_env(SNAKE_GAME_ID, n_envs=8, seed=0, env_kwargs=env_kwargs,)
 
     # Define a trigger function (e.g., record a video every 20,000 steps)
@@ -130,32 +125,31 @@ def main(is_testing_final=False):
         net_arch=[]  # Ensures mlp_extractor remains empty
     )
 
-    # Use a CNN-based policy since observations are images.
+    # Use a CNN-based policy with the custom features extractor
     if ALGO == "ppo":
         model = PPO(
-            "CnnPolicy", 
-            env, 
-            verbose=1, 
+            "CnnPolicy",
+            env,
+            verbose=1,
             tensorboard_log=experiment_logdir if (IS_SAVING_LOG and not is_testing_final) else None,
-            gamma=.9,    # default=.99
+            gamma=.9,
             n_epochs=TOTAL_EPOCHS,
             n_steps=STEPS_PER_EPOCH,
             learning_rate=LEARNING_RATE,
             policy_kwargs=policy_kwargs
-            )
+        )
     elif ALGO == "a2c":
         model = A2C(
             "CnnPolicy",
             env,
             verbose=1,
             tensorboard_log=experiment_logdir if IS_SAVING_LOG else None,
-            # device='cpu',
             gamma=.9,
             policy_kwargs=policy_kwargs
         )
 
     print(model.policy)
-
+        
     if is_testing_final:            # run to get full trajectory
         model = PPO.load(f"bin/{MODEL_NAME_ON_DISK}") if ALGO == "ppo" else A2C.load(f"bin/{MODEL_NAME_ON_DISK}")
         scores = []
@@ -179,4 +173,3 @@ def main(is_testing_final=False):
 
 if __name__ == '__main__':
     main(is_testing_final=False)
-    

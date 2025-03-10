@@ -61,13 +61,23 @@ class Element(Enum):
     NONE = 0
     SNAKE = 1
     FOOD = 2
-    OBSTACLE = 3
+    OBSTACLE = 3,
+    EXTRA_FOOD = 4
 
 # def log(loc, msg, log_level=1):
 #     print(f"[{loc}]\t\t{msg}")
 
 class SnakeGame:
-    def __init__(self, b_X = 10, b_Y = 10, is_random_spawn = False, snake_speed = None, arena_size: list = None):
+    def __init__(
+            self, 
+            b_X = 10, 
+            b_Y = 10, 
+            is_random_spawn = True, 
+            snake_speed = None, 
+            arena_size: list = None,
+            has_extra_food = True,
+            obstacle_settings: list[bool] = None        # could be implemented using callbacks
+            ):
         # Hypterparams =====
         self._IS_RENDERING = False
         self._IS_CARDINAL = True    # Snake's noving scheme. Cardinal or Left-right. Note: Cardinal is better
@@ -84,6 +94,11 @@ class SnakeGame:
         self.INIT_SNAKE_LEN = 3      # minimum = 3
         self.BOARD_SHAPE = (self.BOARD_X, self.BOARD_Y)
         self.MAX_ACTION_COUNT = 4 if self._IS_CARDINAL else 3
+        self._FOOD_REWARD_WHEN_EXTRA = .2
+        self._FOOD_REWARD_WHEN_NO_EXTRA = 1
+        self._current_food_reward = 1
+        self._EXTRA_FOOD_CHANCE = .5 if has_extra_food else -1
+        self._EXTRA_FOOD_REWARD = .8
         # Window size
         self.WINDOW_SIZE_MULTIPLIER = 10
         self.WINDOW_X = self._to_window_metric(self.BOARD_X)
@@ -99,7 +114,8 @@ class SnakeGame:
             Element.NONE: [0,0,0],
             Element.SNAKE: [255,255,255],
             Element.FOOD: [0,255,45],
-            Element.OBSTACLE: [100, 125, 160]
+            Element.OBSTACLE: [100, 125, 160],
+            Element.EXTRA_FOOD: [0, 0, 255]
         }
 
         self.game_window: pygame.Surface = None
@@ -112,6 +128,17 @@ class SnakeGame:
         self.obstacles_bpos: list[list[int]] = []               # Must generate obstacles before snake/food for legal checking
         if arena_size != None:
             self._generate_wall(arena_size[0], arena_size[1])
+        
+        try:                                                    # Generate obstacles    
+            if obstacle_settings[0]:
+                self._add_obstacle_set_1()
+            if obstacle_settings[1]:
+                self._add_obstacle_set_2()
+        except IndexError: pass
+        except TypeError: pass
+
+        self.does_food_exist = False
+        self.does_extra_food_exist = False
 
         self.snake_bpos: list[int] = []
         self.snake_body_bpos: list[tuple[int]] = []
@@ -119,6 +146,8 @@ class SnakeGame:
         
         self.food_bpos = self._generate_random_loc_on_board()
         self.does_food_exist = True
+        self.extra_food_bpos = self._generate_random_loc_on_board()
+        self.is_spawning_extra_food = False
         self.snake_direction = Direction.RIGHT
         log("game", f"Init. (p:{(b_X, b_Y)}) (BS:{self.BOARD_SHAPE})")
 
@@ -220,12 +249,16 @@ class SnakeGame:
         return legal_locs
     
     def _is_loc_legal(self, b_x, b_y) -> bool:
-        if b_x < 0 or b_x >= self.BOARD_X or b_y < 0 or b_y >= self.BOARD_Y:
+        if b_x < 0 or b_x >= self.BOARD_X or b_y < 0 or b_y >= self.BOARD_Y:       # border check
             return False
-        for bpos in self.snake_body_bpos:
+        if self.does_food_exist and b_x == self.food_bpos[0] and b_y == self.food_bpos[1]:
+            return False
+        if self.does_extra_food_exist and b_x == self.extra_food_bpos[0] and b_y == self.extra_food_bpos[1]:
+            return False
+        for bpos in self.snake_body_bpos:                       # body check
             if b_x == bpos[0] and b_y == bpos[1]:
                 return False
-        for bpos in self.obstacles_bpos:
+        for bpos in self.obstacles_bpos:                        # obstacle check
             if b_x == bpos[0] and b_y == bpos[1]:
                 return False
         return True
@@ -276,6 +309,8 @@ class SnakeGame:
     def get_board(self) -> np.ndarray:
         board: np.ndarray = np.zeros(self.BOARD_SHAPE, dtype=np.int64)
         board[self.food_bpos[0], self.food_bpos[1]] = Element.FOOD.value
+        if self.does_extra_food_exist:
+            board[self.extra_food_bpos[0], self.extra_food_bpos[1]] = Element.EXTRA_FOOD.value
         for bpos in self.snake_body_bpos:
             try:
                 board[bpos[0], bpos[1]] = Element.SNAKE.value
@@ -387,16 +422,30 @@ class SnakeGame:
         # if fruits and snakes collide then scores
         # will be incremented by 10
         self.snake_body_bpos.insert(0, list(self.snake_bpos))
-        if self.snake_bpos[0] == self.food_bpos[0] and self.snake_bpos[1] == self.food_bpos[1]:
-            self.score += 1
+        if self.does_extra_food_exist \
+                and self.snake_bpos[0] == self.extra_food_bpos[0] \
+                and self.snake_bpos[1] == self.extra_food_bpos[1]:     # one fruit eaten at a time
+            self.score += self._EXTRA_FOOD_REWARD
+            self.does_extra_food_exist = False
+        elif self.snake_bpos[0] == self.food_bpos[0] and self.snake_bpos[1] == self.food_bpos[1]:
+            self.score += self._current_food_reward
             self.does_food_exist = False
+            self.does_extra_food_exist = False          # wipe the extra food when normal food eaten
+            if random.random() <= self._EXTRA_FOOD_CHANCE:      # spawning extra food with chance
+                self.is_spawning_extra_food = True
+                self._current_food_reward = self._FOOD_REWARD_WHEN_EXTRA
+            else:
+                self._current_food_reward = self._FOOD_REWARD_WHEN_NO_EXTRA
         else:
             self.snake_body_bpos.pop()
             
         if not self.does_food_exist:
-            self.food_bpos = self._generate_random_loc_on_board()
-            
+            self.food_bpos = self._generate_random_loc_on_board()            
         self.does_food_exist = True
+        if self.is_spawning_extra_food:
+            self.extra_food_bpos = self._generate_random_loc_on_board()
+            self.is_spawning_extra_food = False
+            self.does_extra_food_exist = True
 
         if self._IS_RENDERING:
             self._render()
@@ -432,7 +481,10 @@ class SnakeGame:
             wboard: np.ndarray = np.zeros((self.WINDOW_X, self.WINDOW_Y, 3), dtype=np.uint8)
         # Food: green
         food_color = self._ELEMENT_TO_RGB[Element.FOOD]
+        extra_food_color = self._ELEMENT_TO_RGB[Element.EXTRA_FOOD]
         self._draw_on_wboard(wboard, self.food_bpos[0], self.food_bpos[1], food_color[0], food_color[1], food_color[2], is_channel_first=is_channel_first)
+        if self.does_extra_food_exist:
+            self._draw_on_wboard(wboard, self.extra_food_bpos[0], self.extra_food_bpos[1], extra_food_color[0], extra_food_color[1], extra_food_color[2], is_channel_first=is_channel_first)
         # Snake: white 
         for bpos in self.snake_body_bpos:
             try:
@@ -454,7 +506,30 @@ class SnakeGame:
         for x in range(self._to_window_metric(bpos_anchor_x), self._to_window_metric(bpos_anchor_x+1)):
             for y in range(self._to_window_metric(bpos_anchor_y), self._to_window_metric(bpos_anchor_y+1)):
                 self._color_wpos(wboard, x, y, r, g, b, is_channel_first=is_channel_first)
+
+    def _add_rect_obstacle_to_board(self, bpos_top_left_x, bpos_top_left_y, bpos_bot_right_x, bpos_bot_right_y):
+        """Add group of pos (rect) to obstacle list. Will not check for legality."""
+        for x in range(bpos_top_left_x, bpos_bot_right_x+1):
+            for y in range(bpos_top_left_y, bpos_bot_right_y+1):
+                self.obstacles_bpos.append([x,y])
+    
+    def _add_obstacle_set_1(self, obstacle_base_side=1):
+        """Add a rect obstacle in the middle of the arena. Will scale with arena size, based on 8x8"""
+        obst_side_x = int(obstacle_base_side / 8 * self.ARENA_X)
+        obst_side_y = int(obstacle_base_side / 8 * self.ARENA_Y)
+        obst_top_left = [self.ARENA_X // 2 - obst_side_x // 2 - 1, self.ARENA_Y // 2 - obst_side_y // 2 - 1]
+        obst_bot_right = [self.ARENA_X // 2 + obst_side_x // 2, self.ARENA_Y // 2 + obst_side_y // 2]
+        self._add_rect_obstacle_to_board(obst_top_left[0], obst_top_left[1], obst_bot_right[0], obst_bot_right[1])
+
+    def _add_obstacle_set_2(self, gate_base_size=4):
+        """Split arena by half with a wall, but leaving a gate in the middle. Will scale with arena size, based on 8x8"""
+        wall_bpos_y = int(self.ARENA_Y / 2)
+        mid_bpos_x = int(self.ARENA_X / 2)
+        gate_size = int((gate_base_size / 2) / 8 * self.ARENA_X)
         
+        self._add_rect_obstacle_to_board(0, wall_bpos_y, mid_bpos_x-gate_size-1, wall_bpos_y)
+        self._add_rect_obstacle_to_board(mid_bpos_x+gate_size, wall_bpos_y, self.ARENA_X-1, wall_bpos_y)
+
     def _color_wpos(self, wboard, wpos_x, wpos_y, r, g, b, is_channel_first=False):
         """Color a window position on the window board"""
         if is_channel_first:
@@ -492,6 +567,9 @@ class SnakeGame:
                             pygame.Rect(wpos[0], wpos[1], 10, 10))
         pygame.draw.rect(self.game_window, self.WHITE, pygame.Rect(
             self._to_window_metric(self.food_bpos[0]), self._to_window_metric(self.food_bpos[1]), 10, 10))
+        if self.does_extra_food_exist:
+            pygame.draw.rect(self.game_window, self.BLUE, pygame.Rect(
+                self._to_window_metric(self.extra_food_bpos[0]), self._to_window_metric(self.extra_food_bpos[1]), 10, 10))
 
         # displaying score countinuously
         self._show_score(1, self.WHITE, 'times new roman', 20)
@@ -504,7 +582,6 @@ class SnakeGame:
 
     def _run(self):
         self._IS_RENDERING = True
-        self.SNAKE_SPEED = 5
         # Initialising pygame
         pygame.init()
         
@@ -536,5 +613,12 @@ class SnakeGame:
             fps.tick(self.SNAKE_SPEED)
 
 # if __name__ == "__main__":
-#     myGame = SnakeGame(b_X=10, b_Y=10, arena_size=[8,8])
+#     myGame = SnakeGame(
+#         b_X=20, 
+#         b_Y=20, 
+#         is_random_spawn=True,
+#         arena_size=[18,18], 
+#         snake_speed=5,             # optimal = 5
+#         obstacle_settings=[False, True]
+#         )
 #     myGame._run()

@@ -27,6 +27,8 @@ class SnakeGameEnv(gym.Env):
         self._is_new = True
         self._is_random_spawn = kwargs.get("is_random_spawn", False)
         self.GAME_FPS = kwargs.get("fps", None)
+        self._HAS_EXTRA_FOOD = kwargs.get("has_extra_food", False)
+        self._OBSTACLE_SETTINGS = kwargs.get("obstacle_settings", None)
 
         super(SnakeGameEnv, self).__init__()
         self.game = SnakeGame(
@@ -34,7 +36,9 @@ class SnakeGameEnv(gym.Env):
             b_Y=board_y, 
             is_random_spawn=self._is_random_spawn, 
             snake_speed=self.GAME_FPS, 
-            arena_size=arena_size)
+            arena_size=arena_size,
+            has_extra_food=self._HAS_EXTRA_FOOD,
+            obstacle_settings=self._OBSTACLE_SETTINGS)
         self.prev_score = 0
 
         # for obs type IMAGE, the shape of obs_space is different from the board shape.
@@ -78,7 +82,9 @@ class SnakeGameEnv(gym.Env):
             b_Y=t_bY, 
             is_random_spawn=self._is_random_spawn, 
             snake_speed=self.GAME_FPS,
-            arena_size=[self.game.ARENA_X, self.game.ARENA_Y] if self.game.ARENA_X != None else None)
+            arena_size=[self.game.ARENA_X, self.game.ARENA_Y] if self.game.ARENA_X != None else None,
+            has_extra_food=self._HAS_EXTRA_FOOD,
+            obstacle_settings=self._OBSTACLE_SETTINGS)
         info = dict()
         self.prev_score = 0
         obs = self.game.get_observation(is_image_type= self.OBS_TYPE == Observation_Type.IMAGE)
