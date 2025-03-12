@@ -166,26 +166,26 @@ Similar to phase 1, except:
   default one by SB3.
 - We adjust our arena size from 10x10 to 8x8 for faster train-and-test iterations.
 
-### 5. Evaluation
-#### 5.1. PHASE 1
+## Evaluation
+#### 1. PHASE 1
 We plan to evaluate performance by comparing the average score (total fruit eaten per episode) across 100 test 
 episodes for each model after training.
 
-##### 5.1.1. A2C model
+##### 1.1. A2C model
 - Training evaluation: As shown in fig 02, we observed a mean fluctuation of around 1. Interestingly, we noticed a significant jump in mean score between 3 mil and 4 mil steps. At the end of training, we observed a mean score of 4.18.
 - Final evaluation: During final evaluation, we observed a mean reward of approximately 7.
 <figure><img src="https://imgur.com/6BtTiqX.gif" height="300">
   <figcaption>Figure 3. A2C final evaluation's mean reward</figcaption>
 </figure>
 
-##### 5.1.2. PPO model
+##### 1.2. PPO model
 - Training evaluation: As shown in Fig 02, we observed a mean fluctuation of around .3. Noticably, there is a jumped in mean score at the beginning. At the end of training, we observed a mean score of 4.7.
 - Final evaluation: During final evaluation, we observed a mean reward of approximately 4.8
 <figure><img src="https://imgur.com/EJEePXL.gif" height="300">
   <figcaption>Figure 4. PPO final evaluation's mean reward</figcaption>
 </figure>
 
-##### 5.1.3. Observation
+##### 1.3. Observation
 - Looking at Figure 2, A2C model performs better than PPO model throughout the training process, as well as final evaluation.
 <figure><img src="https://imgur.com/STH6m3j.png" height="300">
 	<figcaption>Figure 2. Mean rewards over 10 mil training steps of PPO model (grey) vs. A2C model (green)</figcaption>
@@ -197,11 +197,11 @@ episode length for A2C model is much higher and fluctuating than PPO model in th
   <figcaption>Figure 5. Mean episode's length over 10 mil training steps of PPO model (grey) vs. A2C model (green) </figcaption>
 </figure>
 
-#### 5.2. PHASE 2
+#### 2. PHASE 2
 We plan to evaluate performance of our models using the average score (total fruit eaten per episode) across 400 test
 episodes, as well as the statistics during the training process.
 
-##### 5.2.1. Arena default:
+##### 2.1. Arena default:
 - During training, our new A2C model in phase 2 achieves better average reward than the A2C model in phase 1 (~7 pts 
   vs. ~5 pts), and much faster (2.5 mil steps vs. 10 mil steps).
 
@@ -211,7 +211,7 @@ episodes, as well as the statistics during the training process.
 
   <img src="https://imgur.com/uxJOZce.gif" height="300">
 
-##### 5.2.2. Arena with rectangle obstacle:
+##### 2.2. Arena with rectangle obstacle:
 - For this scenario, if we enable penalty for terminal state, the model will not learn at all. Therefore, we opt to 
   turn off the penalty.
 - We use two sizes of the obstacle: 4x4 and 2x2.
@@ -235,7 +235,7 @@ episodes, as well as the statistics during the training process.
     move in a spiraling pattern - which has a better chance of surviving than randomly turning and bite itself by 
     accident.
 
-##### 5.2.3. Arena split by half by a wall with a hole:
+##### 2.3. Arena split by half by a wall with a hole:
 - For this scenario, we opt to turn off the penalty. We choose a hole 1/4th the size of the wall.
 - During training, the model performs arguably well and similar to the scenario without wall. At the end of of 
   training, the model achieves ~5.2 points on average.
@@ -251,7 +251,7 @@ episodes, as well as the statistics during the training process.
 - In that case, if a fruit appear on the snake's side, the snake will grab the fruit. Otherwise, it will spin at the 
   same spot until times out. 
 
-##### 5.2.4. Arena with extra fruit:
+##### 2.4. Arena with extra fruit:
 - The extra fruit worth 0.8 point while the normal fruit worth 0.2 point. If the model only eats normal fruit
   first, the extra fruit will disappear, the model will lose out points, and the average score will tank heavily.
 - However, during training, while the model had a slower start at first, its average reward eventually improves. At 
