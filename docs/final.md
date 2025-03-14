@@ -147,6 +147,31 @@ Here are the scenarios that we trained our models in:
    - For this scenario, we found out that removing the penalty for terminal state will help the model learn better.
    - As such, we trained our model using the default setup with no penalty for terminal state.
 
+#### 3.2.1. Custom CNN Architecture
+
+For Phase 2, we developed a custom CNN architecture inspired by both ResNet and the Llama model architecture, incorporating modern deep learning techniques to improve performance. Our custom architecture features several key components:
+
+1. **SwiGLU Activation Function**: Instead of traditional ReLU activations, we implemented SwiGLU (Swish-Gated Linear Unit) as described in the "GLU Variants Improve Transformer" paper. SwiGLU combines the benefits of gating mechanisms with smooth activation functions, allowing for better gradient flow during training.
+
+2. **Residual Connections**: Following ResNet's design philosophy, we incorporated residual connections that enable the network to learn identity mappings more easily, helping to address the vanishing gradient problem in deeper networks. These connections allow information to flow directly from earlier layers to later ones, facilitating both faster training and better performance.
+
+3. **Enhanced Feature Extraction**:
+   - A larger initial convolutional layer with a 7×7 kernel to capture more spatial information
+   - Multiple residual blocks to maintain and refine feature representations
+   - Strategic max pooling to reduce spatial dimensions while preserving important features
+   - A final SwiGLU-activated linear layer to produce the feature vector
+
+The architecture processes the game state (represented as a grid) through these components to extract meaningful patterns that inform the agent's policy and value functions.
+
+In our experiments, this custom architecture demonstrated significantly faster learning compared to the default SB3 implementation used in Phase 1. The model achieved approximately 7 points on average in just 2.5 million training steps, compared to approximately 5 points after 10 million steps with the original architecture.
+
+This dramatic improvement in early training efficiency suggests that the residual connections help the network learn basic game patterns more quickly, while the SwiGLU activations may provide better gradient flow that facilitates more effective policy updates. While the final performance after extended training may converge to similar levels, the custom architecture's ability to reach good performance with 75% fewer training steps represents a substantial improvement in computational efficiency.
+
+<figure>
+  <img src="https://imgur.com/opwVHVD.png" height="300">
+  <figcaption>Figure 6. Training progression of the custom CNN architecture showing faster convergence</figcaption>
+</figure>
+
 ### 4. Hyper-parameters and Reproducibility
 #### 4.1. PHASE 1
 The models are trained using A2C and PPO, and the default CNN architecture from Stable-Baselines3 (two 
