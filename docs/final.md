@@ -3,6 +3,8 @@ layout: default
 title: Final Report
 ---
 
+<iframe width="560" height="315" src="https://www.youtube.com/embed/DktMHJlLqwQ?si=w4ItK3dOhDsWnpte" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
 ## Project Summary
 
 For this project, we want a bot to play the Snake game and achieve reasonably high score.
@@ -78,7 +80,7 @@ then fed into a policy network to select an action `a`. The policy network archi
 setup in Stable-Baselines3, as shown below:
 
 <figure><img src="https://stable-baselines3.readthedocs.io/en/master/_images/net_arch.png" height="300">
-	<figcaption>Figure 1. Source: https://stable-baselines3.readthedocs.io/en/master/guide/custom_policy.html</figcaption>
+	<figcaption>Source: https://stable-baselines3.readthedocs.io/en/master/guide/custom_policy.html</figcaption>
 </figure>
 
 Below, we explain how A2C and PPO work and how we apply them to the Snake game.
@@ -121,10 +123,10 @@ train for 10 million timesteps with default hyperparameters from Stable-Baseline
 we kept them unchanged.
 
 #### 3.1.3. Comparison and Limitation
-<img src="https://imgur.com/dVBtGCf.png" height="300">
-
-- As shown in the graph above, A2C performs better than PPO within the first 10 mil steps, in the default arena.
+- As shown in the graph below, A2C performs better than PPO within the first 10 mil steps, in the default arena.
   Hence, we opt to only perform evaluation on models trained by A2C.
+
+  <img src="https://imgur.com/dVBtGCf.png" height="300">
 
 #### 3.2. PHASE 2
 Using the same A2C algorithm, we train different models for different scenarios to see how they perform. However, we 
@@ -167,10 +169,7 @@ In our experiments, this custom architecture demonstrated significantly faster l
 
 This dramatic improvement in early training efficiency suggests that the residual connections help the network learn basic game patterns more quickly, while the SwiGLU activations may provide better gradient flow that facilitates more effective policy updates. While the final performance after extended training may converge to similar levels, the custom architecture's ability to reach good performance with 75% fewer training steps represents a substantial improvement in computational efficiency.
 
-<figure>
-  <img src="https://imgur.com/opwVHVD.png" height="300">
-  <figcaption>Figure 6. Training progression of the custom CNN architecture showing faster convergence</figcaption>
-</figure>
+<img src="https://imgur.com/opwVHVD.png" height="300">
 
 ### 4. Hyper-parameters and Reproducibility
 #### 4.1. PHASE 1
@@ -199,22 +198,19 @@ episodes for each model after training.
 ##### 1.1. A2C model
 - Training evaluation: As shown in fig 02, we observed a mean fluctuation of around 1. Interestingly, we noticed a significant jump in mean score between 3 mil and 4 mil steps. At the end of training, we observed a mean score of 4.18.
 - Final evaluation: During final evaluation, we observed a mean reward of approximately 7.
-<figure><img src="https://imgur.com/6BtTiqX.gif" height="300">
-  <figcaption>Figure 3. A2C final evaluation's mean reward</figcaption>
-</figure>
+  
+  <img src="https://imgur.com/6BtTiqX.gif" height="300">
 
 ##### 1.2. PPO model
 - Training evaluation: As shown in Fig 02, we observed a mean fluctuation of around .3. Noticably, there is a jumped in mean score at the beginning. At the end of training, we observed a mean score of 4.7.
 - Final evaluation: During final evaluation, we observed a mean reward of approximately 4.8
-<figure><img src="https://imgur.com/EJEePXL.gif" height="300">
-  <figcaption>Figure 4. PPO final evaluation's mean reward</figcaption>
-</figure>
+
+  <img src="https://imgur.com/EJEePXL.gif" height="300">
 
 ##### 1.3. Observation
 - Looking at Figure 2, A2C model performs better than PPO model throughout the training process, as well as final evaluation.
-<figure><img src="https://imgur.com/STH6m3j.png" height="300">
-	<figcaption>Figure 2. Mean rewards over 10 mil training steps of PPO model (grey) vs. A2C model (green)</figcaption>
-</figure>
+  
+  <img src="https://imgur.com/STH6m3j.png" height="300">
 
 - A problem with A2C model is that at first, it wastes lots of the time for little returns. Figure 5 show the mean 
 episode length for A2C model is much higher and fluctuating than PPO model in the beginning. Yet during those same timesteps, PPO model gets better mean rewards.
